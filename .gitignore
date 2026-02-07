@@ -1,0 +1,35 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+.env
+build/
+dist/
+*.egg-info/
+
+# --- AWS & Lambda ---
+# Ignore the zip files we create for deployment
+*.zip
+# Ignore local AWS SAM or CDK metadata
+.aws-sam/
+.cdk/
+
+# --- Terraform ---
+# Local state and plugins
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+.terraform.tfvars
+# Ignore sensitive variable files
+*.tfvars
+*.tfvars.json
+
+# --- OS / IDE ---
+.DS_Store
+.vscode/
+.idea/
+*.swp

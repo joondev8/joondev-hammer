@@ -1,0 +1,7 @@
+# --- Core Application ---
+boto3==1.34.50
+python-dotenv==1.0.1
+
+# --- Testing & Development ---
+pytest==8.0.2
+moto[s3]==5.0.2      # Mocks S3 so you don't need real AWS credentials to test
