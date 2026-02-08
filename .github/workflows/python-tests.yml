@@ -3,7 +3,10 @@
 
 name: Run Tests on Commits
 
-on: [push]
+on:
+  push:
+    branches:
+      - '**' # Triggers on every commit to every branch
 
 jobs:
   test:
