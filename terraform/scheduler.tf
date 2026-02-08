@@ -6,7 +6,7 @@ resource "aws_scheduler_schedule" "weekday_report" {
   }
 
   # cron(Minutes Hours Day-of-month Month Day-of-week Year)
-  schedule_expression          = "cron(0 20 ? * TUE-SAT *)"
+  schedule_expression          = "cron(0 20 ? * MON-FRI *)"
   schedule_expression_timezone = "America/New_York" # Change to your timezone
 
   target {
@@ -22,8 +22,8 @@ resource "aws_iam_role" "scheduler_role" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
       Principal = { Service = "scheduler.amazonaws.com" }
     }]
   })
