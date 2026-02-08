@@ -1,3 +1,13 @@
+# AWS Provider Configuration
+provider "aws" {
+  region = "us-east-1"
+  assume_role {
+    # This is the role that Terraform will assume to create resources. Make sure it has the necessary permissions.
+    role_arn     = "arn:aws:iam::925369342450:role/TerraformExecutionRole"
+    session_name = "TerraformSession"
+  }
+}
+
 # Create the S3 Bucket
 resource "aws_s3_bucket" "report_storage" {
   bucket = var.bucket_name
@@ -33,8 +43,8 @@ resource "aws_iam_role" "lambda_exec_role" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
       Principal = { Service = "lambda.amazonaws.com" }
     }]
   })
@@ -50,6 +60,11 @@ resource "aws_iam_role_policy" "lambda_policy" {
         Effect   = "Allow"
         Action   = ["s3:PutObject"]
         Resource = "${aws_s3_bucket.report_storage.arn}/*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["sns:Publish"]
+        Resource = "${aws_sns_topic.support_alerts.arn}"
       },
       {
         Effect   = "Allow"
