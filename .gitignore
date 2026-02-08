@@ -23,7 +23,7 @@ dist/
 *.tfstate
 *.tfstate.backup
 .terraform.lock.hcl
-.terraform.tfvars
+#.terraform.tfvars
 # Ignore sensitive variable files
 *.tfvars
 *.tfvars.json
