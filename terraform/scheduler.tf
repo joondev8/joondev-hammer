@@ -6,7 +6,7 @@ resource "aws_scheduler_schedule" "weekday_report" {
   }
 
   # cron(Minutes Hours Day-of-month Month Day-of-week Year)
-  schedule_expression          = "cron(0 20 ? * * *)"
+  schedule_expression          = "cron(0 20 ? * MON-FRI *)"
   schedule_expression_timezone = "America/New_York" # Change to your timezone
 
   target {
