@@ -28,6 +28,8 @@ resource "aws_lambda_function" "report_gen" {
   handler          = "dailyticker.generate_report.lambda_handler"
   runtime          = "python3.11"
   source_code_hash = data.archive_file.lambda_zip.output_base64sha256
+  timeout          = 60  # Increased from the default (3s) to 60 seconds
+  memory_size      = 256 # Consider bumping this if the reports are large
 
   environment {
     variables = {
