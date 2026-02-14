@@ -50,6 +50,14 @@ def test_create_price_report_by_yf_format(mock_download):
         ('High', 'TSLA'): [820.0],
         ('Low', 'TSLA'): [795.0],
         ('Close', 'TSLA'): [815.0],
+        ('Open', 'TD.TO'): [75.0],
+        ('High', 'TD.TO'): [77.0],
+        ('Low', 'TD.TO'): [74.0],
+        ('Close', 'TD.TO'): [76.0],
+        ('Open', 'SHOP.TO'): [85.0],
+        ('High', 'SHOP.TO'): [88.0],
+        ('Low', 'SHOP.TO'): [84.0],
+        ('Close', 'SHOP.TO'): [87.0],
     }, index=pd.DatetimeIndex(['2024-01-15']))
     mock_data.columns = pd.MultiIndex.from_tuples(mock_data.columns)
     mock_download.return_value = mock_data
@@ -68,8 +76,8 @@ def test_create_price_report_by_yf_format(mock_download):
     
     # Assert header is correct
     assert rows[0] == ['Date', 'Ticker', 'Open', 'High', 'Low', 'Close']
-    # Assert we have data rows (5 tickers)
-    assert len(rows) == 6  # 1 header + 5 data rows
+    # Assert we have data rows (7 tickers)
+    assert len(rows) == 8  # 1 header + 7 data rows
 
 
 @patch('dailyticker.generator.yf.download')
@@ -98,6 +106,14 @@ def test_create_price_report_by_yf_data_content(mock_download):
         ('High', 'TSLA'): [820.0],
         ('Low', 'TSLA'): [795.0],
         ('Close', 'TSLA'): [815.0],
+        ('Open', 'TD.TO'): [75.0],
+        ('High', 'TD.TO'): [77.0],
+        ('Low', 'TD.TO'): [74.0],
+        ('Close', 'TD.TO'): [76.0],
+        ('Open', 'SHOP.TO'): [85.0],
+        ('High', 'SHOP.TO'): [88.0],
+        ('Low', 'SHOP.TO'): [84.0],
+        ('Close', 'SHOP.TO'): [87.0],
     }, index=pd.DatetimeIndex([test_date]))
     mock_data.columns = pd.MultiIndex.from_tuples(mock_data.columns)
     mock_download.return_value = mock_data
@@ -145,6 +161,14 @@ def test_create_price_report_by_yf_all_tickers(mock_download):
         ('High', 'TSLA'): [820.0],
         ('Low', 'TSLA'): [795.0],
         ('Close', 'TSLA'): [815.0],
+        ('Open', 'TD.TO'): [75.0],
+        ('High', 'TD.TO'): [77.0],
+        ('Low', 'TD.TO'): [74.0],
+        ('Close', 'TD.TO'): [76.0],
+        ('Open', 'SHOP.TO'): [85.0],
+        ('High', 'SHOP.TO'): [88.0],
+        ('Low', 'SHOP.TO'): [84.0],
+        ('Close', 'SHOP.TO'): [87.0],
     }, index=pd.DatetimeIndex(['2024-01-15']))
     mock_data.columns = pd.MultiIndex.from_tuples(mock_data.columns)
     mock_download.return_value = mock_data
@@ -161,7 +185,7 @@ def test_create_price_report_by_yf_all_tickers(mock_download):
     tickers = [row[1] for row in rows[1:]]
     
     # Assert all expected tickers are present
-    expected_tickers = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA']
+    expected_tickers = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'TD.TO', 'SHOP.TO']
     assert tickers == expected_tickers
 
 
@@ -180,7 +204,7 @@ def test_create_price_report_by_yf_handles_exceptions(mock_download):
     # Make xs method raise an exception for some tickers
     def xs_side_effect(*args, **kwargs):
         ticker = args[0]
-        if ticker in ['GOOGL', 'MSFT']:
+        if ticker in ['GOOGL', 'MSFT', 'TD.TO']:
             raise KeyError(f"Ticker {ticker} not found")
         return mock_data.xs(ticker, axis=1, level=1)
     
@@ -195,8 +219,8 @@ def test_create_price_report_by_yf_handles_exceptions(mock_download):
     reader = csv.reader(file_handle)
     rows = list(reader)
     
-    # Should still have all 5 tickers with N/A for failed ones
-    assert len(rows) == 6  # 1 header + 5 data rows
+    # Should still have all 7 tickers with N/A for failed ones
+    assert len(rows) == 8  # 1 header + 7 data rows
     
     # Check that some rows have N/A values
     has_na = any('N/A' in row for row in rows[1:])
@@ -229,6 +253,14 @@ def test_create_price_report_by_yf_date_format(mock_download):
         ('High', 'TSLA'): [820.0],
         ('Low', 'TSLA'): [795.0],
         ('Close', 'TSLA'): [815.0],
+        ('Open', 'TD.TO'): [75.0],
+        ('High', 'TD.TO'): [77.0],
+        ('Low', 'TD.TO'): [74.0],
+        ('Close', 'TD.TO'): [76.0],
+        ('Open', 'SHOP.TO'): [85.0],
+        ('High', 'SHOP.TO'): [88.0],
+        ('Low', 'SHOP.TO'): [84.0],
+        ('Close', 'SHOP.TO'): [87.0],
     }, index=pd.DatetimeIndex([test_date]))
     mock_data.columns = pd.MultiIndex.from_tuples(mock_data.columns)
     mock_download.return_value = mock_data
@@ -271,6 +303,14 @@ def test_create_price_report_by_yf_price_formatting(mock_download):
         ('High', 'TSLA'): [820.0],
         ('Low', 'TSLA'): [795.0],
         ('Close', 'TSLA'): [815.0],
+        ('Open', 'TD.TO'): [75.123456],
+        ('High', 'TD.TO'): [76.987654],
+        ('Low', 'TD.TO'): [74.111111],
+        ('Close', 'TD.TO'): [75.555555],
+        ('Open', 'SHOP.TO'): [85.123456],
+        ('High', 'SHOP.TO'): [87.987654],
+        ('Low', 'SHOP.TO'): [84.111111],
+        ('Close', 'SHOP.TO'): [86.555555],
     }, index=pd.DatetimeIndex(['2024-01-15']))
     mock_data.columns = pd.MultiIndex.from_tuples(mock_data.columns)
     mock_download.return_value = mock_data
