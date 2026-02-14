@@ -1,12 +1,13 @@
 # Joondev Hammer
 
-A Python-based AWS Lambda function that generates CSV reports and uploads them to S3. This project automates the creation of transaction reports and stores them in cloud storage for archival and analysis.
+A Python-based AWS Lambda function that generates stock price CSV reports and uploads them to S3. This project automates the creation of OHLC (Open, High, Low, Close) stock price reports using live market data from Yahoo Finance and stores them in cloud storage for archival and analysis.
 
 ## Overview
 
 Joondev Hammer is a serverless application built with AWS Lambda that:
-- Generates CSV transaction reports
-- Uploads them to Amazon S3 for storage
+- Generates CSV stock price reports with OHLC data from Yahoo Finance
+- Fetches real-time market data for multiple tickers (AAPL, GOOGL, MSFT, AMZN, TSLA)
+- Uploads reports to Amazon S3 for storage
 - Can be scheduled using AWS EventBridge (configured via Terraform)
 - Sends notifications on completion
 
@@ -33,12 +34,15 @@ joondev-hammer/
 
 ## Features
 
-- **CSV Report Generation**: Creates timestamped transaction reports with transaction ID, date, amount, and currency
+- **Stock Price Report Generation**: Creates timestamped OHLC reports using Yahoo Finance API
+- **Live Market Data**: Fetches real-time stock prices for major tech companies
+- **CSV Format**: Generates structured CSV files with Date, Ticker, Open, High, Low, Close columns
 - **S3 Integration**: Uploads generated reports to AWS S3 buckets
 - **Serverless Architecture**: Runs on AWS Lambda with no server management
 - **Infrastructure as Code**: Complete Terraform configuration for AWS resources
 - **Event-Driven**: Integrates with AWS EventBridge for scheduled execution
 - **Notifications**: SNS integration for completion alerts
+- **Comprehensive Testing**: Full test coverage with mocked Yahoo Finance data
 
 ## Requirements
 
@@ -51,6 +55,8 @@ joondev-hammer/
 See [requirements.txt](requirements.txt) for the complete list. Key dependencies:
 
 - **boto3**: AWS SDK for Python (S3 and SNS integration)
+- **yfinance**: Yahoo Finance API for fetching stock market data
+- **pandas**: Data manipulation for OHLC data processing
 - **python-dotenv**: Environment variable management
 - **pytest**: Testing framework
 - **moto**: Mock AWS services for testing
@@ -118,7 +124,18 @@ Main Lambda entry point. Orchestrates the report generation and upload process.
 **Returns**: `{"status": "success"}` on successful completion
 
 ### `create_price_report()`
-Generates a CSV report with transaction data.
+Generates a CSV report with dummy transaction data (legacy function).
+
+**Returns**: Tuple of (csv_content, filename)
+
+### `create_price_report_by_yf()`
+Generates a CSV report with OHLC stock price data from Yahoo Finance.
+
+**Tickers**: AAPL, GOOGL, MSFT, AMZN, TSLA
+
+**Data Fetched**: Last 1 day of market data including business date
+
+**CSV Format**: Date, Ticker, Open, High, Low, Close (prices formatted to 2 decimal places)
 
 **Returns**: Tuple of (csv_content, filename)
 
