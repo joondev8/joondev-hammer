@@ -1,6 +1,5 @@
 import yfinance as yf
 import csv
-from fileinput import filename
 import io
 from datetime import datetime
 
