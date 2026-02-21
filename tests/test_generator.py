@@ -1,7 +1,6 @@
 import pytest
 import csv
 import io
-import pandas as pd
 from unittest.mock import patch, MagicMock
 from datetime import datetime
 from dailyticker.generator import create_price_report  # create_price_report_by_yf
