@@ -1,17 +1,7 @@
-name: Manual Test Suite
+name: Run Tests Manually
 
 on:
   workflow_dispatch:
-    inputs:
-      environment:
-        description: 'Environment to run tests against'
-        type: choice
-        required: true
-        default: 'staging'
-        options:
-          - staging
-          - QA
-          - production
 
 jobs:
   test:
