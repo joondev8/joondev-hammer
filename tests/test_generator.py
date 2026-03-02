@@ -33,7 +33,7 @@ def test_create_price_report_format():
 
 
 @patch.dict('os.environ', {'AV_API_KEY': 'demo'}, clear=True)
-@patch('app.dailyticker.generator.requests.get')
+@patch('dailyticker.generator.requests.get')
 def test_create_price_report_by_av_success(mock_get):
     """Verify AV function returns OHLC data rows for all tickers"""
     def build_response(symbol):
@@ -75,7 +75,7 @@ def test_create_price_report_by_av_success(mock_get):
 
 
 @patch.dict('os.environ', {}, clear=True)
-@patch('app.dailyticker.generator.requests.get')
+@patch('dailyticker.generator.requests.get')
 def test_create_price_report_by_av_without_api_key_returns_na(mock_get):
     """Verify AV function returns N/A rows and skips HTTP when API key is missing"""
     content, _ = create_price_report_by_av()
@@ -92,7 +92,7 @@ def test_create_price_report_by_av_without_api_key_returns_na(mock_get):
 
 
 @patch.dict('os.environ', {'AV_API_KEY': 'demo'}, clear=True)
-@patch('app.dailyticker.generator.requests.get')
+@patch('dailyticker.generator.requests.get')
 def test_create_price_report_by_av_handles_request_failure_per_ticker(mock_get):
     """Verify AV function falls back to N/A for failed ticker requests only"""
     def side_effect(*args, **kwargs):
@@ -128,7 +128,7 @@ def test_create_price_report_by_av_handles_request_failure_per_ticker(mock_get):
 
 
 @patch.dict('os.environ', {'AV_API_KEY': 'demo'}, clear=True)
-@patch('app.dailyticker.generator.requests.get')
+@patch('dailyticker.generator.requests.get')
 def test_create_price_report_by_av_handles_missing_time_series_payload(mock_get):
     """Verify AV function returns N/A rows when response has no Time Series data"""
     response = MagicMock()
@@ -150,7 +150,7 @@ def test_create_price_report_by_av_handles_missing_time_series_payload(mock_get)
 
 
 @patch.dict('os.environ', {'AV_API_KEY': 'demo'}, clear=True)
-@patch('app.dailyticker.generator.requests.get')
+@patch('dailyticker.generator.requests.get')
 def test_create_price_report_by_av_handles_malformed_ohlc_values(mock_get):
     """Verify AV function falls back to N/A when OHLC values are not numeric"""
     def side_effect(*args, **kwargs):
