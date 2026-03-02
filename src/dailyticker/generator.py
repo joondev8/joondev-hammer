@@ -1,8 +1,10 @@
-#import yfinance as yf
 import csv
 import io
+import os
+import requests
 from datetime import datetime
 
+tickers = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'TD.TO', 'SHOP.TO']
 
 def create_price_report():
     """
@@ -28,51 +30,66 @@ def create_price_report():
     
     return output.getvalue(), filename
 
-# def create_price_report_by_yf():
-#     """
-#     Generates OHLC report data including the specific business date.
-#     """
-#     # 1. Create a unique filename for the output file
-#     timestamp = datetime.now().strftime('%Y-%m-%d_%H%M')
-#     filename = f"stock_price_{timestamp}.csv"
-#     
-#     tickers = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'TD.TO', 'SHOP.TO']
-# 
-#     # 2. Download the last 1 day of data
-#     data = yf.download(tickers, period="1d", auto_adjust=True)
-# 
-#     # 3. Extract the actual Business Date from the DataFrame index
-#     # data.index[-1] gives the timestamp of the last row
-#     business_date = data.index[-1].strftime('%Y-%m-%d')
-#     
-# 
-#     # 4. Generate data in memory
-#     output = io.StringIO()
-#     writer = csv.writer(output)
-#     
-#     # Updated Header with 'Date'
-#     writer.writerow(['Date', 'Ticker', 'Open', 'High', 'Low', 'Close'])
-#     
-#     # 5. Iterate and extract OHLC data
-#     for ticker in tickers:
-#         try:
-#             # Handle MultiIndex for multiple tickers
-#             ohlc = data.xs(ticker, axis=1, level=1) if len(tickers) > 1 else data
-#             
-#             # Create the row with the business date included
-#             row = [
-#                 business_date,
-#                 ticker,
-#                 f"{ohlc['Open'].iloc[-1]:.2f}",
-#                 f"{ohlc['High'].iloc[-1]:.2f}",
-#                 f"{ohlc['Low'].iloc[-1]:.2f}",
-#                 f"{ohlc['Close'].iloc[-1]:.2f}"
-#             ]
-#             writer.writerow(row)
-#         except Exception:
-#             writer.writerow([business_date, ticker, "N/A", "N/A", "N/A", "N/A"])
-#     
-#     return output.getvalue(), filename
+def create_price_report_by_av():
+    """
+    Generates OHLC report data including the specific business date.
+    Use Alpha Vantage API to fetch stock data and generate the report.
+    """
+    api_key = os.getenv("AV_API_KEY")
+    base_url = "https://www.alphavantage.co/query"
+
+    # 1. Create a unique filename for the output file
+    timestamp = datetime.now().strftime('%Y-%m-%d_%H%M')
+    filename = f"stock_price_{timestamp}.csv"
+
+    # Generate data in memory
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # Updated Header with 'Date'
+    writer.writerow(['Date', 'Ticker', 'Open', 'High', 'Low', 'Close'])
+
+    for ticker in tickers:
+        if not api_key:
+            business_date = datetime.now().strftime('%Y-%m-%d')
+            writer.writerow([business_date, ticker, "N/A", "N/A", "N/A", "N/A"])
+            continue
+
+        params = {
+            "function": "TIME_SERIES_DAILY",
+            "symbol": ticker,
+            "outputsize": "compact",
+            "apikey": api_key
+        }
+
+        try:
+            response = requests.get(base_url, params=params, timeout=15)
+            response.raise_for_status()
+            payload = response.json()
+
+            time_series = payload.get("Time Series (Daily)", {})
+            if not time_series:
+                business_date = datetime.now().strftime('%Y-%m-%d')
+                writer.writerow([business_date, ticker, "N/A", "N/A", "N/A", "N/A"])
+                continue
+
+            business_date = max(time_series.keys())
+            day_data = time_series[business_date]
+
+            row = [
+                business_date,
+                ticker,
+                f"{float(day_data['1. open']):.2f}",
+                f"{float(day_data['2. high']):.2f}",
+                f"{float(day_data['3. low']):.2f}",
+                f"{float(day_data['4. close']):.2f}",
+            ]
+            writer.writerow(row)
+        except Exception:
+            business_date = datetime.now().strftime('%Y-%m-%d')
+            writer.writerow([business_date, ticker, "N/A", "N/A", "N/A", "N/A"])
+    
+    return output.getvalue(), filename
 
 def main():
     content, filename = create_price_report()

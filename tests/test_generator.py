@@ -3,7 +3,7 @@ import csv
 import io
 from unittest.mock import patch, MagicMock
 from datetime import datetime
-from dailyticker.generator import create_price_report  # create_price_report_by_yf
+from dailyticker.generator import create_price_report, create_price_report_by_av, tickers
 
 def test_create_price_report_format():
     """Verify that the generator produces a valid CSV with correct headers"""
@@ -32,307 +32,161 @@ def test_create_price_report_format():
         assert len(row) == 6
 
 
-# @patch('dailyticker.generator.yf.download')
-# def test_create_price_report_by_yf_format(mock_download):
-#     """Verify that create_price_report_by_yf produces valid CSV with correct headers"""
-#     # Mock yfinance data
-#     mock_data = pd.DataFrame({
-#         ('Open', 'AAPL'): [150.0],
-#         ('High', 'AAPL'): [155.0],
-#         ('Low', 'AAPL'): [149.0],
-#         ('Close', 'AAPL'): [154.0],
-#         ('Open', 'GOOGL'): [2800.0],
-#         ('High', 'GOOGL'): [2850.0],
-#         ('Low', 'GOOGL'): [2790.0],
-#         ('Close', 'GOOGL'): [2840.0],
-#         ('Open', 'MSFT'): [300.0],
-#         ('High', 'MSFT'): [305.0],
-#         ('Low', 'MSFT'): [298.0],
-#         ('Close', 'MSFT'): [303.0],
-#         ('Open', 'AMZN'): [3200.0],
-#         ('High', 'AMZN'): [3250.0],
-#         ('Low', 'AMZN'): [3190.0],
-#         ('Close', 'AMZN'): [3240.0],
-#         ('Open', 'TSLA'): [800.0],
-#         ('High', 'TSLA'): [820.0],
-#         ('Low', 'TSLA'): [795.0],
-#         ('Close', 'TSLA'): [815.0],
-#         ('Open', 'TD.TO'): [75.0],
-#         ('High', 'TD.TO'): [77.0],
-#         ('Low', 'TD.TO'): [74.0],
-#         ('Close', 'TD.TO'): [76.0],
-#         ('Open', 'SHOP.TO'): [85.0],
-#         ('High', 'SHOP.TO'): [88.0],
-#         ('Low', 'SHOP.TO'): [84.0],
-#         ('Close', 'SHOP.TO'): [87.0],
-#     }, index=pd.DatetimeIndex(['2024-01-15']))
-#     mock_data.columns = pd.MultiIndex.from_tuples(mock_data.columns)
-#     mock_download.return_value = mock_data
-#     
-#     # Call the function
-#     content, filename = create_price_report_by_yf()
-#     
-#     # Check filename pattern
-#     assert filename.startswith("stock_price_")
-#     assert filename.endswith(".csv")
-#     
-#     # Check content structure
-#     file_handle = io.StringIO(content)
-#     reader = csv.reader(file_handle)
-#     rows = list(reader)
-#     
-#     # Assert header is correct
-#     assert rows[0] == ['Date', 'Ticker', 'Open', 'High', 'Low', 'Close']
-#     # Assert we have data rows (7 tickers)
-#     assert len(rows) == 8  # 1 header + 7 data rows
+@patch.dict('os.environ', {'AV_API_KEY': 'demo'}, clear=True)
+@patch('app.dailyticker.generator.requests.get')
+def test_create_price_report_by_av_success(mock_get):
+    """Verify AV function returns OHLC data rows for all tickers"""
+    def build_response(symbol):
+        response = MagicMock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = {
+            "Time Series (Daily)": {
+                "2026-02-27": {
+                    "1. open": "101.1",
+                    "2. high": "102.2",
+                    "3. low": "100.3",
+                    "4. close": "101.4"
+                },
+                "2026-02-28": {
+                    "1. open": "201.11",
+                    "2. high": "202.22",
+                    "3. low": "200.33",
+                    "4. close": "201.44"
+                }
+            }
+        }
+        return response
+
+    mock_get.side_effect = lambda *args, **kwargs: build_response(kwargs['params']['symbol'])
+
+    content, filename = create_price_report_by_av()
+
+    assert filename.startswith("stock_price_")
+    assert filename.endswith(".csv")
+
+    rows = list(csv.reader(io.StringIO(content)))
+    assert rows[0] == ['Date', 'Ticker', 'Open', 'High', 'Low', 'Close']
+    assert len(rows) == len(tickers) + 1
+    assert [row[1] for row in rows[1:]] == tickers
+
+    for row in rows[1:]:
+        assert row[0] == '2026-02-28'
+        assert row[2:] == ['201.11', '202.22', '200.33', '201.44']
 
 
-# @patch('dailyticker.generator.yf.download')
-# def test_create_price_report_by_yf_data_content(mock_download):
-#     """Verify that create_price_report_by_yf contains correct OHLC data"""
-#     # Mock yfinance data
-#     test_date = '2024-01-15'
-#     mock_data = pd.DataFrame({
-#         ('Open', 'AAPL'): [150.0],
-#         ('High', 'AAPL'): [155.0],
-#         ('Low', 'AAPL'): [149.0],
-#         ('Close', 'AAPL'): [154.0],
-#         ('Open', 'GOOGL'): [2800.0],
-#         ('High', 'GOOGL'): [2850.0],
-#         ('Low', 'GOOGL'): [2790.0],
-#         ('Close', 'GOOGL'): [2840.0],
-#         ('Open', 'MSFT'): [300.0],
-#         ('High', 'MSFT'): [305.0],
-#         ('Low', 'MSFT'): [298.0],
-#         ('Close', 'MSFT'): [303.0],
-#         ('Open', 'AMZN'): [3200.0],
-#         ('High', 'AMZN'): [3250.0],
-#         ('Low', 'AMZN'): [3190.0],
-#         ('Close', 'AMZN'): [3240.0],
-#         ('Open', 'TSLA'): [800.0],
-#         ('High', 'TSLA'): [820.0],
-#         ('Low', 'TSLA'): [795.0],
-#         ('Close', 'TSLA'): [815.0],
-#         ('Open', 'TD.TO'): [75.0],
-#         ('High', 'TD.TO'): [77.0],
-#         ('Low', 'TD.TO'): [74.0],
-#         ('Close', 'TD.TO'): [76.0],
-#         ('Open', 'SHOP.TO'): [85.0],
-#         ('High', 'SHOP.TO'): [88.0],
-#         ('Low', 'SHOP.TO'): [84.0],
-#         ('Close', 'SHOP.TO'): [87.0],
-#     }, index=pd.DatetimeIndex([test_date]))
-#     mock_data.columns = pd.MultiIndex.from_tuples(mock_data.columns)
-#     mock_download.return_value = mock_data
-#     
-#     # Call the function
-#     content, filename = create_price_report_by_yf()
-#     
-#     # Parse CSV content
-#     file_handle = io.StringIO(content)
-#     reader = csv.reader(file_handle)
-#     rows = list(reader)
-#     
-#     # Check AAPL data
-#     aapl_row = rows[1]
-#     assert aapl_row[0] == test_date
-#     assert aapl_row[1] == 'AAPL'
-#     assert aapl_row[2] == '150.00'
-#     assert aapl_row[3] == '155.00'
-#     assert aapl_row[4] == '149.00'
-#     assert aapl_row[5] == '154.00'
+@patch.dict('os.environ', {}, clear=True)
+@patch('app.dailyticker.generator.requests.get')
+def test_create_price_report_by_av_without_api_key_returns_na(mock_get):
+    """Verify AV function returns N/A rows and skips HTTP when API key is missing"""
+    content, _ = create_price_report_by_av()
+
+    rows = list(csv.reader(io.StringIO(content)))
+    assert rows[0] == ['Date', 'Ticker', 'Open', 'High', 'Low', 'Close']
+    assert len(rows) == len(tickers) + 1
+
+    for row, symbol in zip(rows[1:], tickers):
+        assert row[1] == symbol
+        assert row[2:] == ['N/A', 'N/A', 'N/A', 'N/A']
+
+    mock_get.assert_not_called()
 
 
-# @patch('dailyticker.generator.yf.download')
-# def test_create_price_report_by_yf_all_tickers(mock_download):
-#     """Verify that all expected tickers are in the report"""
-#     # Mock yfinance data
-#     mock_data = pd.DataFrame({
-#         ('Open', 'AAPL'): [150.0],
-#         ('High', 'AAPL'): [155.0],
-#         ('Low', 'AAPL'): [149.0],
-#         ('Close', 'AAPL'): [154.0],
-#         ('Open', 'GOOGL'): [2800.0],
-#         ('High', 'GOOGL'): [2850.0],
-#         ('Low', 'GOOGL'): [2790.0],
-#         ('Close', 'GOOGL'): [2840.0],
-#         ('Open', 'MSFT'): [300.0],
-#         ('High', 'MSFT'): [305.0],
-#         ('Low', 'MSFT'): [298.0],
-#         ('Close', 'MSFT'): [303.0],
-#         ('Open', 'AMZN'): [3200.0],
-#         ('High', 'AMZN'): [3250.0],
-#         ('Low', 'AMZN'): [3190.0],
-#         ('Close', 'AMZN'): [3240.0],
-#         ('Open', 'TSLA'): [800.0],
-#         ('High', 'TSLA'): [820.0],
-#         ('Low', 'TSLA'): [795.0],
-#         ('Close', 'TSLA'): [815.0],
-#         ('Open', 'TD.TO'): [75.0],
-#         ('High', 'TD.TO'): [77.0],
-#         ('Low', 'TD.TO'): [74.0],
-#         ('Close', 'TD.TO'): [76.0],
-#         ('Open', 'SHOP.TO'): [85.0],
-#         ('High', 'SHOP.TO'): [88.0],
-#         ('Low', 'SHOP.TO'): [84.0],
-#         ('Close', 'SHOP.TO'): [87.0],
-#     }, index=pd.DatetimeIndex(['2024-01-15']))
-#     mock_data.columns = pd.MultiIndex.from_tuples(mock_data.columns)
-#     mock_download.return_value = mock_data
-#     
-#     # Call the function
-#     content, filename = create_price_report_by_yf()
-#     
-#     # Parse CSV content
-#     file_handle = io.StringIO(content)
-#     reader = csv.reader(file_handle)
-#     rows = list(reader)
-#     
-#     # Extract tickers from data rows
-#     tickers = [row[1] for row in rows[1:]]
-#     
-#     # Assert all expected tickers are present
-#     expected_tickers = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'TD.TO', 'SHOP.TO']
-#     assert tickers == expected_tickers
+@patch.dict('os.environ', {'AV_API_KEY': 'demo'}, clear=True)
+@patch('app.dailyticker.generator.requests.get')
+def test_create_price_report_by_av_handles_request_failure_per_ticker(mock_get):
+    """Verify AV function falls back to N/A for failed ticker requests only"""
+    def side_effect(*args, **kwargs):
+        symbol = kwargs['params']['symbol']
+        if symbol == 'MSFT':
+            raise Exception("rate limit")
+
+        response = MagicMock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = {
+            "Time Series (Daily)": {
+                "2026-02-28": {
+                    "1. open": "10",
+                    "2. high": "12",
+                    "3. low": "9",
+                    "4. close": "11"
+                }
+            }
+        }
+        return response
+
+    mock_get.side_effect = side_effect
+
+    content, _ = create_price_report_by_av()
+    rows = list(csv.reader(io.StringIO(content)))
+
+    assert len(rows) == len(tickers) + 1
+    row_by_symbol = {row[1]: row for row in rows[1:]}
+
+    assert row_by_symbol['MSFT'][2:] == ['N/A', 'N/A', 'N/A', 'N/A']
+    assert row_by_symbol['AAPL'][2:] == ['10.00', '12.00', '9.00', '11.00']
+    assert row_by_symbol['GOOGL'][2:] == ['10.00', '12.00', '9.00', '11.00']
 
 
-# @patch('dailyticker.generator.yf.download')
-# def test_create_price_report_by_yf_handles_exceptions(mock_download):
-#     """Verify that the function handles missing data gracefully"""
-#     # Mock yfinance data with incomplete data that will raise exceptions
-#     mock_data = pd.DataFrame({
-#         ('Open', 'AAPL'): [150.0],
-#         ('High', 'AAPL'): [155.0],
-#         ('Low', 'AAPL'): [149.0],
-#         ('Close', 'AAPL'): [154.0],
-#     }, index=pd.DatetimeIndex(['2024-01-15']))
-#     mock_data.columns = pd.MultiIndex.from_tuples(mock_data.columns)
-#     
-#     # Make xs method raise an exception for some tickers
-#     def xs_side_effect(*args, **kwargs):
-#         ticker = args[0]
-#         if ticker in ['GOOGL', 'MSFT', 'TD.TO']:
-#             raise KeyError(f"Ticker {ticker} not found")
-#         return mock_data.xs(ticker, axis=1, level=1)
-#     
-#     mock_data.xs = MagicMock(side_effect=xs_side_effect)
-#     mock_download.return_value = mock_data
-#     
-#     # Call the function - should not raise an exception
-#     content, filename = create_price_report_by_yf()
-#     
-#     # Parse CSV content
-#     file_handle = io.StringIO(content)
-#     reader = csv.reader(file_handle)
-#     rows = list(reader)
-#     
-#     # Should still have all 7 tickers with N/A for failed ones
-#     assert len(rows) == 8  # 1 header + 7 data rows
-#     
-#     # Check that some rows have N/A values
-#     has_na = any('N/A' in row for row in rows[1:])
-#     assert has_na
+@patch.dict('os.environ', {'AV_API_KEY': 'demo'}, clear=True)
+@patch('app.dailyticker.generator.requests.get')
+def test_create_price_report_by_av_handles_missing_time_series_payload(mock_get):
+    """Verify AV function returns N/A rows when response has no Time Series data"""
+    response = MagicMock()
+    response.raise_for_status.return_value = None
+    response.json.return_value = {
+        "Note": "Thank you for using Alpha Vantage! Our standard API rate limit is 25 requests per day."
+    }
+    mock_get.return_value = response
+
+    content, _ = create_price_report_by_av()
+    rows = list(csv.reader(io.StringIO(content)))
+
+    assert rows[0] == ['Date', 'Ticker', 'Open', 'High', 'Low', 'Close']
+    assert len(rows) == len(tickers) + 1
+
+    for row, symbol in zip(rows[1:], tickers):
+        assert row[1] == symbol
+        assert row[2:] == ['N/A', 'N/A', 'N/A', 'N/A']
 
 
-# @patch('dailyticker.generator.yf.download')
-# def test_create_price_report_by_yf_date_format(mock_download):
-#     """Verify that the business date is formatted correctly"""
-#     # Mock yfinance data
-#     test_date = datetime(2024, 1, 15)
-#     mock_data = pd.DataFrame({
-#         ('Open', 'AAPL'): [150.0],
-#         ('High', 'AAPL'): [155.0],
-#         ('Low', 'AAPL'): [149.0],
-#         ('Close', 'AAPL'): [154.0],
-#         ('Open', 'GOOGL'): [2800.0],
-#         ('High', 'GOOGL'): [2850.0],
-#         ('Low', 'GOOGL'): [2790.0],
-#         ('Close', 'GOOGL'): [2840.0],
-#         ('Open', 'MSFT'): [300.0],
-#         ('High', 'MSFT'): [305.0],
-#         ('Low', 'MSFT'): [298.0],
-#         ('Close', 'MSFT'): [303.0],
-#         ('Open', 'AMZN'): [3200.0],
-#         ('High', 'AMZN'): [3250.0],
-#         ('Low', 'AMZN'): [3190.0],
-#         ('Close', 'AMZN'): [3240.0],
-#         ('Open', 'TSLA'): [800.0],
-#         ('High', 'TSLA'): [820.0],
-#         ('Low', 'TSLA'): [795.0],
-#         ('Close', 'TSLA'): [815.0],
-#         ('Open', 'TD.TO'): [75.0],
-#         ('High', 'TD.TO'): [77.0],
-#         ('Low', 'TD.TO'): [74.0],
-#         ('Close', 'TD.TO'): [76.0],
-#         ('Open', 'SHOP.TO'): [85.0],
-#         ('High', 'SHOP.TO'): [88.0],
-#         ('Low', 'SHOP.TO'): [84.0],
-#         ('Close', 'SHOP.TO'): [87.0],
-#     }, index=pd.DatetimeIndex([test_date]))
-#     mock_data.columns = pd.MultiIndex.from_tuples(mock_data.columns)
-#     mock_download.return_value = mock_data
-#     
-#     # Call the function
-#     content, filename = create_price_report_by_yf()
-#     
-#     # Parse CSV content
-#     file_handle = io.StringIO(content)
-#     reader = csv.reader(file_handle)
-#     rows = list(reader)
-#     
-#     # Check date format in all data rows
-#     for row in rows[1:]:
-#         assert row[0] == '2024-01-15'  # YYYY-MM-DD format
+@patch.dict('os.environ', {'AV_API_KEY': 'demo'}, clear=True)
+@patch('app.dailyticker.generator.requests.get')
+def test_create_price_report_by_av_handles_malformed_ohlc_values(mock_get):
+    """Verify AV function falls back to N/A when OHLC values are not numeric"""
+    def side_effect(*args, **kwargs):
+        symbol = kwargs['params']['symbol']
+        response = MagicMock()
+        response.raise_for_status.return_value = None
 
+        if symbol == 'AAPL':
+            response.json.return_value = {
+                "Time Series (Daily)": {
+                    "2026-02-28": {
+                        "1. open": "not-a-number",
+                        "2. high": "12",
+                        "3. low": "9",
+                        "4. close": "11"
+                    }
+                }
+            }
+        else:
+            response.json.return_value = {
+                "Time Series (Daily)": {
+                    "2026-02-28": {
+                        "1. open": "10",
+                        "2. high": "12",
+                        "3. low": "9",
+                        "4. close": "11"
+                    }
+                }
+            }
+        return response
 
-# @patch('dailyticker.generator.yf.download')
-# def test_create_price_report_by_yf_price_formatting(mock_download):
-#     """Verify that prices are formatted to 2 decimal places"""
-#     # Mock yfinance data with prices that have more decimals
-#     mock_data = pd.DataFrame({
-#         ('Open', 'AAPL'): [150.123456],
-#         ('High', 'AAPL'): [155.987654],
-#         ('Low', 'AAPL'): [149.111111],
-#         ('Close', 'AAPL'): [154.555555],
-#         ('Open', 'GOOGL'): [2800.0],
-#         ('High', 'GOOGL'): [2850.0],
-#         ('Low', 'GOOGL'): [2790.0],
-#         ('Close', 'GOOGL'): [2840.0],
-#         ('Open', 'MSFT'): [300.0],
-#         ('High', 'MSFT'): [305.0],
-#         ('Low', 'MSFT'): [298.0],
-#         ('Close', 'MSFT'): [303.0],
-#         ('Open', 'AMZN'): [3200.0],
-#         ('High', 'AMZN'): [3250.0],
-#         ('Low', 'AMZN'): [3190.0],
-#         ('Close', 'AMZN'): [3240.0],
-#         ('Open', 'TSLA'): [800.0],
-#         ('High', 'TSLA'): [820.0],
-#         ('Low', 'TSLA'): [795.0],
-#         ('Close', 'TSLA'): [815.0],
-#         ('Open', 'TD.TO'): [75.123456],
-#         ('High', 'TD.TO'): [76.987654],
-#         ('Low', 'TD.TO'): [74.111111],
-#         ('Close', 'TD.TO'): [75.555555],
-#         ('Open', 'SHOP.TO'): [85.123456],
-#         ('High', 'SHOP.TO'): [87.987654],
-#         ('Low', 'SHOP.TO'): [84.111111],
-#         ('Close', 'SHOP.TO'): [86.555555],
-#     }, index=pd.DatetimeIndex(['2024-01-15']))
-#     mock_data.columns = pd.MultiIndex.from_tuples(mock_data.columns)
-#     mock_download.return_value = mock_data
-#     
-#     # Call the function
-#     content, filename = create_price_report_by_yf()
-#     
-#     # Parse CSV content
-#     file_handle = io.StringIO(content)
-#     reader = csv.reader(file_handle)
-#     rows = list(reader)
-#     
-#     # Check AAPL prices are formatted to 2 decimal places
-#     aapl_row = rows[1]
-#     assert aapl_row[2] == '150.12'
-#     assert aapl_row[3] == '155.99'
-#     assert aapl_row[4] == '149.11'
-#     assert aapl_row[5] == '154.56'
+    mock_get.side_effect = side_effect
+
+    content, _ = create_price_report_by_av()
+    rows = list(csv.reader(io.StringIO(content)))
+    row_by_symbol = {row[1]: row for row in rows[1:]}
+
+    assert row_by_symbol['AAPL'][2:] == ['N/A', 'N/A', 'N/A', 'N/A']
+    assert row_by_symbol['GOOGL'][2:] == ['10.00', '12.00', '9.00', '11.00']
