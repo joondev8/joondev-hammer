@@ -5,3 +5,7 @@ python-dotenv==1.0.1
 # --- Testing & Development ---
 pytest==8.0.2
 moto[s3]==5.0.2      # Mocks S3 so you don't need real AWS credentials to test
+
+# --- Static Analysis ---
+flake8==7.3.0
+flake8-bugbear==25.11.29
