@@ -8,6 +8,12 @@ variable "support_email" {
   type        = string
 }
 
+variable "av_api_key" {
+  description = "Alpha Vantage API key used by the report generator"
+  type        = string
+  sensitive   = true
+}
+
 # Optional: You can also declare your region here
 variable "aws_region" {
   description = "AWS region for all resources"

@@ -34,6 +34,7 @@ resource "aws_lambda_function" "report_gen" {
   environment {
     variables = {
       S3_BUCKET_NAME = aws_s3_bucket.report_storage.id
+      AV_API_KEY     = var.av_api_key
     }
   }
 }
