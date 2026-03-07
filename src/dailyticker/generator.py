@@ -10,11 +10,11 @@ def create_price_report():
     """
     Generates report data and returns a tuple of (content, filename)
     """
-    # Create a unique filename
+    # Create a unique filename for the output file
     timestamp = datetime.now().strftime('%Y-%m-%d_%H%M')
     filename = f"stock_price_{timestamp}.csv"
     
-    # 3. Extract the actual Business Date from the DataFrame index
+    # Extract the actual Business Date from the DataFrame index
     # data.index[-1] gives the timestamp of the last row
     business_date = datetime.now().strftime('%Y-%m-%d')
 
@@ -38,9 +38,11 @@ def create_price_report_by_av():
     api_key = os.getenv("AV_API_KEY")
     base_url = "https://www.alphavantage.co/query"
 
-    # 1. Create a unique filename for the output file
+    # Create a unique filename for the output file
+    # The filename includes the current timestamp to ensure uniqueness and traceability. 
+    # It has the format "stock_price_{source}_YYYY-MM-DD_HHMM.csv", where {source} is the data source e,g, "av" for Alpha Vantage, while YYYY-MM-DD is the current date, and HHMM is the current time in hours and minutes.
     timestamp = datetime.now().strftime('%Y-%m-%d_%H%M')
-    filename = f"stock_price_{timestamp}.csv"
+    filename = f"stock_price_av_{timestamp}.csv"
 
     # Generate data in memory
     output = io.StringIO()
@@ -92,7 +94,7 @@ def create_price_report_by_av():
     return output.getvalue(), filename
 
 def main():
-    content, filename = create_price_report()
+    content, filename = create_price_report_by_av()
     print(f"Generated report: {filename}")
     print(content)
 

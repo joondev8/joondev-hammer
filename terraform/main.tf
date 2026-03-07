@@ -20,6 +20,19 @@ data "archive_file" "lambda_zip" {
   output_path = "${path.module}/lambda_function.zip"
 }
 
+data "archive_file" "common_libs_zip" {
+  type        = "zip"
+  source_dir  = "${path.module}/../python"
+  output_path = "${path.module}/common_libs.zip"
+}
+
+
+resource "aws_lambda_layer_version" "python_dependencies" {
+  filename            = "${path.module}/common_libs.zip"
+  layer_name          = "python-dependencies"
+  compatible_runtimes = ["python3.11"]
+}
+
 # Lambda Function
 resource "aws_lambda_function" "report_gen" {
   filename         = data.archive_file.lambda_zip.output_path
@@ -27,6 +40,7 @@ resource "aws_lambda_function" "report_gen" {
   role             = aws_iam_role.lambda_exec_role.arn
   handler          = "dailyticker.generate_report.lambda_handler"
   runtime          = "python3.11"
+  layers           = [aws_lambda_layer_version.python_dependencies.arn]
   source_code_hash = data.archive_file.lambda_zip.output_base64sha256
   timeout          = 60  # Increased from the default (3s) to 60 seconds
   memory_size      = 256 # Consider bumping this if the reports are large
@@ -34,7 +48,7 @@ resource "aws_lambda_function" "report_gen" {
   environment {
     variables = {
       S3_BUCKET_NAME = aws_s3_bucket.report_storage.id
-      AV_API_KEY      = var.av_api_key
+      AV_API_KEY     = var.av_api_key
     }
   }
 }
@@ -45,16 +59,21 @@ resource "aws_lambda_function" "ticker_loader" {
   role             = aws_iam_role.lambda_exec_role.arn
   handler          = "tickerloader.load_report.lambda_handler"
   runtime          = "python3.11"
+  layers           = [aws_lambda_layer_version.python_dependencies.arn]
   source_code_hash = data.archive_file.lambda_zip.output_base64sha256
-  timeout          = 60
+  timeout          = 120
   memory_size      = 256
 
   environment {
     variables = {
       S3_BUCKET_NAME = aws_s3_bucket.report_storage.id
+      DB_HOST        = var.db_host
+      DB_PORT        = var.db_port
       DB_NAME        = var.db_name
       DB_USERNAME    = var.db_username
       DB_PASSWORD    = var.db_password
+      DB_SCHEMA      = var.db_schema
+      DB_SSLMODE     = var.db_sslmode
     }
   }
 }

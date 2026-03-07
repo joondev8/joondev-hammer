@@ -2,21 +2,21 @@
 
 Serverless Python project for daily stock ticker reporting:
 - `dailyticker` generates OHLC CSV files and uploads them to S3.
-- `tickerloader` reads CSV files from S3 and loads rows into SQLite.
+- `tickerloader` reads CSV files from S3 and loads rows into PostgreSQL on AWS RDS.
 
 ## Overview
 
-The repository currently contains two AWS Lambda-oriented flows:
+The repository contains two AWS Lambda-oriented flows:
 
 1. **Generate + upload flow**
    - Builds CSV content for configured tickers using Alpha Vantage (`requests`)
-   - Uploads the file to an S3 bucket (`boto3`)
+   - Uploads generated content to S3 (`boto3`)
 
 2. **Load flow**
-   - Resolves an S3 object location from event data or environment variables
+   - Resolves S3 location from event records or environment-variable fallback
    - Downloads and parses CSV rows
-   - Inserts row data into SQLite (`stock_prices`)
-   - Tracks loader task state in `upload_tasks`
+	- Inserts data into `market_data.raw_ticker_prices`
+	- Tracks load status in `market_data.upload_task` (`IN_PROGRESS` → `DONE` / `ERROR`), including `rows_succeeded` and `rows_failed`
 
 ## Project Structure
 
@@ -24,6 +24,7 @@ The repository currently contains two AWS Lambda-oriented flows:
 joondev-hammer/
 ├── src/
 │   ├── dailyticker/
+│   │   ├── __init__.py
 │   │   ├── generate_report.py
 │   │   ├── generator.py
 │   │   └── uploader.py
@@ -41,6 +42,7 @@ joondev-hammer/
 │   └── variables.tf
 ├── tests/
 │   ├── test_generator.py
+│   ├── test_loader.py
 │   └── test_uploader.py
 ├── requirements.txt
 └── pytest.ini
@@ -62,11 +64,18 @@ pip install -r requirements.txt
 
 ### `dailyticker`
 - `S3_BUCKET_NAME` (required): destination S3 bucket for generated reports
-- `AV_API_KEY` (optional): Alpha Vantage API key; when missing, report values fallback to `N/A`
+- `AV_API_KEY` (optional): Alpha Vantage API key; when missing, report values fall back to `N/A`
 
 ### `tickerloader`
 - `S3_BUCKET_NAME` and `TICKER_FILE_KEY` (optional fallback when event has no S3 record)
-- `SQLITE_DB_PATH` (optional): SQLite file path; defaults to `%TEMP%/tickerloader.db`
+- `DB_HOST` (required): RDS endpoint
+- `DB_PORT` (optional): database port, default `5432`
+- `DB_NAME` (required): PostgreSQL database name
+- `DB_USERNAME` (required): database username
+- `DB_PASSWORD` (required): database password
+- `DB_SCHEMA` (optional): schema name, default `market_data`
+- `DB_SSLMODE` (optional): SSL mode, default `require`
+- `DEBUG` (optional): set to `"true"` to read CSV from local file path in `TICKER_FILE_KEY`
 
 ## Usage
 
@@ -78,13 +87,13 @@ pytest -v
 
 ### Lambda handlers
 
-- Generator/upload handler: `app.dailyticker.generate_report.lambda_handler`
-- Loader handler: `app.tickerloader.load_report.lambda_handler`
+- Generator/upload handler: `dailyticker.generate_report.lambda_handler`
+- Loader handler: `tickerloader.load_report.lambda_handler`
 
 ### Local invocation example (generator)
 
 ```python
-from app.dailyticker.generate_report import lambda_handler
+from dailyticker.generate_report import lambda_handler
 
 result = lambda_handler({}, None)
 print(result)
@@ -93,14 +102,14 @@ print(result)
 ### Local invocation example (loader)
 
 ```python
-from app.tickerloader.load_report import lambda_handler
+from tickerloader.load_report import lambda_handler
 
 event = {
 	"Records": [
 		{
 			"s3": {
 				"bucket": {"name": "your-bucket"},
-				"object": {"key": "2026-02-28.csv"}
+				"object": {"key": "stock_price_av_2026-02-28.csv"}
 			}
 		}
 	]
@@ -110,7 +119,23 @@ result = lambda_handler(event, None)
 print(result)
 ```
 
+### Package-mode local run (loader)
+
+```bash
+python -m tickerloader
+```
+
+If you run from repository root, set `PYTHONPATH=src` first (or use the VS Code launch profile already configured).
+
+## Known assumptions
+
+- `tickerloader.load_report.lambda_handler` derives `data_source` from `key.split("_")[2]`.
+- It derives `business_date` from the filename portion of the key (`key.split("_")[-1]`, without `.csv`).
+- Expected key format for correct metadata extraction is `stock_price_{source}_YYYY-MM-DD.csv` (example: `stock_price_av_2026-02-28.csv`).
+- Keys not matching this format may fail during metadata parsing (for example, `IndexError`) or produce incorrect `data_source` / `business_date` values in `upload_tasks`.
+
 ## Notes
 
-- Test coverage currently focuses on `dailyticker` generator and uploader behavior.
-- The `db/001_create_ticker_prices.sql` file is PostgreSQL-oriented for infra/schema reference, while loader runtime persistence is currently SQLite.
+- `pytest.ini` sets `pythonpath = src`, so imports use `dailyticker.*` and `tickerloader.*`.
+- Loader row parsing expects CSV columns: `Date`, `Ticker`, `Open`, `High`, `Low`, `Close`.
+- `db/001_create_ticker_prices.sql` defines the PostgreSQL schema used by loader persistence.
