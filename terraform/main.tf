@@ -34,7 +34,27 @@ resource "aws_lambda_function" "report_gen" {
   environment {
     variables = {
       S3_BUCKET_NAME = aws_s3_bucket.report_storage.id
-      AV_API_KEY     = var.av_api_key
+      AV_API_KEY      = var.av_api_key
+    }
+  }
+}
+
+resource "aws_lambda_function" "ticker_loader" {
+  filename         = data.archive_file.lambda_zip.output_path
+  function_name    = "TickerReportLoader"
+  role             = aws_iam_role.lambda_exec_role.arn
+  handler          = "tickerloader.load_report.lambda_handler"
+  runtime          = "python3.11"
+  source_code_hash = data.archive_file.lambda_zip.output_base64sha256
+  timeout          = 60
+  memory_size      = 256
+
+  environment {
+    variables = {
+      S3_BUCKET_NAME = aws_s3_bucket.report_storage.id
+      DB_NAME        = var.db_name
+      DB_USERNAME    = var.db_username
+      DB_PASSWORD    = var.db_password
     }
   }
 }
@@ -61,7 +81,7 @@ resource "aws_iam_role_policy" "lambda_policy" {
     Statement = [
       {
         Effect   = "Allow"
-        Action   = ["s3:PutObject"]
+        Action   = ["s3:PutObject", "s3:GetObject"]
         Resource = "${aws_s3_bucket.report_storage.arn}/*"
       },
       {
@@ -76,4 +96,25 @@ resource "aws_iam_role_policy" "lambda_policy" {
       }
     ]
   })
+}
+
+resource "aws_lambda_permission" "allow_s3_invoke_ticker_loader" {
+  statement_id  = "AllowExecutionFromS3ForTickerLoader"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.ticker_loader.function_name
+  principal     = "s3.amazonaws.com"
+  source_arn    = aws_s3_bucket.report_storage.arn
+}
+
+resource "aws_s3_bucket_notification" "ticker_loader_trigger" {
+  bucket = aws_s3_bucket.report_storage.id
+
+  lambda_function {
+    lambda_function_arn = aws_lambda_function.ticker_loader.arn
+    events              = ["s3:ObjectCreated:*"]
+    filter_prefix       = "stock_price_"
+    filter_suffix       = ".csv"
+  }
+
+  depends_on = [aws_lambda_permission.allow_s3_invoke_ticker_loader]
 }

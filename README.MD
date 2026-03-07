@@ -1,30 +1,44 @@
 # Joondev Hammer
 
-A Python-based AWS Lambda function that generates stock price CSV reports and uploads them to S3. This project automates the creation of OHLC (Open, High, Low, Close) stock price reports using live market data from Yahoo Finance and stores them in cloud storage for archival and analysis.
+Serverless Python project for daily stock ticker reporting:
+- `dailyticker` generates OHLC CSV files and uploads them to S3.
+- `tickerloader` reads CSV files from S3 and loads rows into SQLite.
 
 ## Overview
 
-Joondev Hammer is a serverless application built with AWS Lambda that:
-- Generates CSV stock price reports with OHLC data from Yahoo Finance
-- Fetches real-time market data for multiple tickers (AAPL, GOOGL, MSFT, AMZN, TSLA)
-- Uploads reports to Amazon S3 for storage
-- Can be scheduled using AWS EventBridge (configured via Terraform)
-- Sends notifications on completion
+The repository currently contains two AWS Lambda-oriented flows:
+
+1. **Generate + upload flow**
+   - Builds CSV content for configured tickers using Alpha Vantage (`requests`)
+   - Uploads the file to an S3 bucket (`boto3`)
+
+2. **Load flow**
+   - Resolves an S3 object location from event data or environment variables
+   - Downloads and parses CSV rows
+   - Inserts row data into SQLite (`stock_prices`)
+   - Tracks loader task state in `upload_tasks`
 
 ## Project Structure
 
 ```
 joondev-hammer/
 ├── src/
-│   ├── generate_report.py      # Main Lambda handler
-│   ├── jobs/
-│   │   ├── generator.py        # CSV report generation
-│   │   └── uploader.py         # S3 upload functionality
-│   └── loaders/
+│   ├── dailyticker/
+│   │   ├── generate_report.py
+│   │   ├── generator.py
+│   │   └── uploader.py
+│   └── tickerloader/
+│       ├── __init__.py
+│       ├── load_report.py
+│       └── loader.py
+├── db/
+│   └── 001_create_ticker_prices.sql
 ├── terraform/
-│   ├── main.tf                 # Infrastructure setup
-│   ├── notifications.tf        # SNS notifications
-│   └── scheduler.tf            # EventBridge scheduling
+│   ├── main.tf
+│   ├── notifications.tf
+│   ├── scheduler.tf
+│   ├── terraform.tfvars
+│   └── variables.tf
 ├── tests/
 │   ├── test_generator.py
 │   └── test_uploader.py
@@ -32,143 +46,71 @@ joondev-hammer/
 └── pytest.ini
 ```
 
-## Features
-
-- **Stock Price Report Generation**: Creates timestamped OHLC reports using Yahoo Finance API
-- **Live Market Data**: Fetches real-time stock prices for major tech companies
-- **CSV Format**: Generates structured CSV files with Date, Ticker, Open, High, Low, Close columns
-- **S3 Integration**: Uploads generated reports to AWS S3 buckets
-- **Serverless Architecture**: Runs on AWS Lambda with no server management
-- **Infrastructure as Code**: Complete Terraform configuration for AWS resources
-- **Event-Driven**: Integrates with AWS EventBridge for scheduled execution
-- **Notifications**: SNS integration for completion alerts
-- **Comprehensive Testing**: Full test coverage with mocked Yahoo Finance data
-
 ## Requirements
 
-- Python 3.8+
-- AWS Account with S3 bucket configured
-- Terraform (for infrastructure deployment)
+- Python 3.12
+- AWS account + permissions for S3/Lambda (for cloud execution)
+- Terraform (optional, for infra provisioning)
 
-## Dependencies
+## Install
 
-See [requirements.txt](requirements.txt) for the complete list. Key dependencies:
-
-- **boto3**: AWS SDK for Python (S3 and SNS integration)
-- **yfinance**: Yahoo Finance API for fetching stock market data
-- **pandas**: Data manipulation for OHLC data processing
-- **python-dotenv**: Environment variable management
-- **pytest**: Testing framework
-- **moto**: Mock AWS services for testing
-
-## Installation
-
-1. Clone the repository:
-```bash
-git clone <repository-url>
-cd joondev-hammer
-```
-
-2. Install Python dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Set up environment variables:
-```bash
-cp .env.example .env
-# Edit .env with your AWS configuration
-export S3_BUCKET_NAME=your-bucket-name
-```
+## Environment Variables
+
+### `dailyticker`
+- `S3_BUCKET_NAME` (required): destination S3 bucket for generated reports
+- `AV_API_KEY` (optional): Alpha Vantage API key; when missing, report values fallback to `N/A`
+
+### `tickerloader`
+- `S3_BUCKET_NAME` and `TICKER_FILE_KEY` (optional fallback when event has no S3 record)
+- `SQLITE_DB_PATH` (optional): SQLite file path; defaults to `%TEMP%/tickerloader.db`
 
 ## Usage
 
-### Local Testing
+### Run tests
 
-Run the test suite:
-```bash
-pytest
-```
-
-Run tests with verbose output:
 ```bash
 pytest -v
 ```
 
-### AWS Deployment
+### Lambda handlers
 
-Deploy infrastructure with Terraform:
-```bash
-cd terraform
-terraform init
-terraform plan
-terraform apply
+- Generator/upload handler: `app.dailyticker.generate_report.lambda_handler`
+- Loader handler: `app.tickerloader.load_report.lambda_handler`
+
+### Local invocation example (generator)
+
+```python
+from app.dailyticker.generate_report import lambda_handler
+
+result = lambda_handler({}, None)
+print(result)
 ```
 
-### Triggering the Lambda
+### Local invocation example (loader)
 
-The Lambda function can be triggered:
-- **Manually**: Via AWS Console or CLI
-- **Scheduled**: Via EventBridge (see `scheduler.tf`)
-- **Programmatically**: Via AWS SDK
+```python
+from app.tickerloader.load_report import lambda_handler
 
-## Environment Variables
+event = {
+	"Records": [
+		{
+			"s3": {
+				"bucket": {"name": "your-bucket"},
+				"object": {"key": "2026-02-28.csv"}
+			}
+		}
+	]
+}
 
-- `S3_BUCKET_NAME`: The S3 bucket where reports will be uploaded
-
-## Function Details
-
-### `lambda_handler(event, context)`
-Main Lambda entry point. Orchestrates the report generation and upload process.
-
-**Returns**: `{"status": "success"}` on successful completion
-
-### `create_price_report()`
-Generates a CSV report with dummy transaction data (legacy function).
-
-**Returns**: Tuple of (csv_content, filename)
-
-### `create_price_report_by_yf()`
-Generates a CSV report with OHLC stock price data from Yahoo Finance.
-
-**Tickers**: AAPL, GOOGL, MSFT, AMZN, TSLA
-
-**Data Fetched**: Last 1 day of market data including business date
-
-**CSV Format**: Date, Ticker, Open, High, Low, Close (prices formatted to 2 decimal places)
-
-**Returns**: Tuple of (csv_content, filename)
-
-### `upload_to_s3(bucket, filename, content)`
-Uploads the CSV report to the specified S3 bucket.
-
-## Testing
-
-Tests use `moto` to mock AWS S3 services, allowing for safe local testing without AWS credentials:
-
-```bash
-pytest tests/
+result = lambda_handler(event, None)
+print(result)
 ```
 
-## Infrastructure
+## Notes
 
-The Terraform configuration sets up:
-- S3 bucket for report storage
-- Lambda function with appropriate IAM roles
-- EventBridge rule for scheduled execution
-- SNS topics for notifications
-
-## Contributing
-
-1. Write tests for new features
-2. Ensure all tests pass: `pytest`
-3. Follow PEP 8 style guidelines
-4. Update this README with any changes
-
-## License
-
-[Add your license information here]
-
-## Support
-
-For issues or questions, please open an issue in the repository.
+- Test coverage currently focuses on `dailyticker` generator and uploader behavior.
+- The `db/001_create_ticker_prices.sql` file is PostgreSQL-oriented for infra/schema reference, while loader runtime persistence is currently SQLite.
