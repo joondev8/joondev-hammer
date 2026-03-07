@@ -22,13 +22,13 @@ data "archive_file" "lambda_zip" {
 
 data "archive_file" "common_libs_zip" {
   type        = "zip"
-  source_dir  = "${path.module}/../python"
-  output_path = "${path.module}/common_libs.zip"
+  source_dir  = "${path.module}/lambda-layer"
+  output_path = "${path.module}/hammer_common_libs.zip"
 }
 
 
 resource "aws_lambda_layer_version" "python_dependencies" {
-  filename            = "${path.module}/common_libs.zip"
+  filename            = "${path.module}/hammer_common_libs.zip"
   layer_name          = "python-dependencies"
   compatible_runtimes = ["python3.11"]
 }
