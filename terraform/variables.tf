@@ -19,20 +19,6 @@ variable "av_api_key" {
   sensitive   = true
 }
 
-# Optional: You can also declare your region here
-variable "aws_region" {
-  description = "AWS region for all resources"
-  type        = string
-  default     = "us-east-1"
-}
-
-variable "db_path" {
-  description = "Database path used by ticker loader Lambda"
-  type        = string
-  default     = "/tmp/ticker_data.db"
-}
-
-
 variable "db_name" {
   type      = string
   sensitive = true
@@ -67,3 +53,27 @@ variable "db_sslmode" {
   type    = string
   default = "require"
 }
+
+# variable "lambda_vpc_id" {
+#   description = "VPC ID where ticker_loader Lambda should run to reach private RDS"
+#   type        = string
+#   default     = ""
+# }
+
+# variable "lambda_subnet_ids" {
+#   description = "Private subnet IDs for ticker_loader Lambda ENIs"
+#   type        = list(string)
+#   default     = []
+# }
+
+# variable "private_route_table_ids" {
+#   description = "Private route table IDs for the VPC endpoint"
+#   type        = list(string)
+#   default     = []
+# }
+
+# variable "db_security_group_id" {
+#   description = "Security group ID attached to the PostgreSQL instance"
+#   type        = string
+#   default     = ""
+# }

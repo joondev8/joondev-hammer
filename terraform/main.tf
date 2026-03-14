@@ -8,6 +8,10 @@ provider "aws" {
   }
 }
 
+# locals {
+#   ticker_loader_vpc_enabled = var.lambda_vpc_id != "" && length(var.lambda_subnet_ids) > 0
+# }
+
 # Create the S3 Bucket
 resource "aws_s3_bucket" "report_storage" {
   bucket = var.bucket_name
@@ -53,30 +57,38 @@ resource "aws_lambda_function" "report_gen" {
   }
 }
 
-resource "aws_lambda_function" "ticker_loader" {
-  filename         = data.archive_file.lambda_zip.output_path
-  function_name    = "TickerReportLoader"
-  role             = aws_iam_role.lambda_exec_role.arn
-  handler          = "tickerloader.load_report.lambda_handler"
-  runtime          = "python3.11"
-  layers           = [aws_lambda_layer_version.python_dependencies.arn]
-  source_code_hash = data.archive_file.lambda_zip.output_base64sha256
-  timeout          = 120
-  memory_size      = 256
+# resource "aws_lambda_function" "ticker_loader" {
+#   filename         = data.archive_file.lambda_zip.output_path
+#   function_name    = "TickerReportLoader"
+#   role             = aws_iam_role.lambda_exec_role.arn
+#   handler          = "tickerloader.load_report.lambda_handler"
+#   runtime          = "python3.11"
+#   layers           = [aws_lambda_layer_version.python_dependencies.arn]
+#   source_code_hash = data.archive_file.lambda_zip.output_base64sha256
+#   timeout          = 120
+#   memory_size      = 256
 
-  environment {
-    variables = {
-      S3_BUCKET_NAME = aws_s3_bucket.report_storage.id
-      DB_HOST        = var.db_host
-      DB_PORT        = var.db_port
-      DB_NAME        = var.db_name
-      DB_USERNAME    = var.db_username
-      DB_PASSWORD    = var.db_password
-      DB_SCHEMA      = var.db_schema
-      DB_SSLMODE     = var.db_sslmode
-    }
-  }
-}
+#   environment {
+#     variables = {
+#       S3_BUCKET_NAME = aws_s3_bucket.report_storage.id
+#       DB_HOST        = var.db_host
+#       DB_PORT        = var.db_port
+#       DB_NAME        = var.db_name
+#       DB_USERNAME    = var.db_username
+#       DB_PASSWORD    = var.db_password
+#       DB_SCHEMA      = var.db_schema
+#       DB_SSLMODE     = var.db_sslmode
+#     }
+#   }
+
+#   dynamic "vpc_config" {
+#     for_each = local.ticker_loader_vpc_enabled ? [1] : []
+#     content {
+#       subnet_ids         = var.lambda_subnet_ids
+#       security_group_ids = [aws_security_group.ticker_loader_lambda_sg[0].id]
+#     }
+#   }
+# }
 
 # IAM Role for Lambda
 resource "aws_iam_role" "lambda_exec_role" {
@@ -112,28 +124,58 @@ resource "aws_iam_role_policy" "lambda_policy" {
         Effect   = "Allow"
         Action   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
         Resource = "arn:aws:logs:*:*:*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:CreateNetworkInterface",
+          "ec2:DescribeNetworkInterfaces",
+          "ec2:DeleteNetworkInterface",
+          "ec2:AssignPrivateIpAddresses",
+          "ec2:UnassignPrivateIpAddresses"
+        ]
+        Resource = "*"
       }
     ]
   })
 }
 
-resource "aws_lambda_permission" "allow_s3_invoke_ticker_loader" {
-  statement_id  = "AllowExecutionFromS3ForTickerLoader"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.ticker_loader.function_name
-  principal     = "s3.amazonaws.com"
-  source_arn    = aws_s3_bucket.report_storage.arn
-}
+# resource "aws_lambda_permission" "allow_s3_invoke_ticker_loader" {
+#   statement_id  = "AllowExecutionFromS3ForTickerLoader"
+#   action        = "lambda:InvokeFunction"
+#   function_name = aws_lambda_function.ticker_loader.function_name
+#   principal     = "s3.amazonaws.com"
+#   source_arn    = aws_s3_bucket.report_storage.arn
+# }
 
-resource "aws_s3_bucket_notification" "ticker_loader_trigger" {
-  bucket = aws_s3_bucket.report_storage.id
+# resource "aws_s3_bucket_notification" "ticker_loader_trigger" {
+#   bucket = aws_s3_bucket.report_storage.id
 
-  lambda_function {
-    lambda_function_arn = aws_lambda_function.ticker_loader.arn
-    events              = ["s3:ObjectCreated:*"]
-    filter_prefix       = "stock_price_"
-    filter_suffix       = ".csv"
-  }
+#   lambda_function {
+#     lambda_function_arn = aws_lambda_function.ticker_loader.arn
+#     events              = ["s3:ObjectCreated:*"]
+#     filter_prefix       = "stock_price_"
+#     filter_suffix       = ".csv"
+#   }
 
-  depends_on = [aws_lambda_permission.allow_s3_invoke_ticker_loader]
-}
+#   depends_on = [aws_lambda_permission.allow_s3_invoke_ticker_loader]
+# }
+
+# Fetch current region to keep service name dynamic
+# data "aws_region" "current" {}
+
+# resource "aws_vpc_endpoint" "s3" {
+#   vpc_id       = var.lambda_vpc_id
+#   service_name = "com.amazonaws.${data.aws_region.current.id}.s3"
+
+#   # Ensure type is set to Gateway (not Interface)
+#   vpc_endpoint_type = "Gateway"
+
+#   # Automatically associate with your private route tables
+#   # This adds the 'pl-xxxxxx' (S3 Prefix List) route automatically
+#   route_table_ids = var.private_route_table_ids
+
+#   tags = {
+#     Name = "s3-gateway-endpoint"
+#   }
+# }

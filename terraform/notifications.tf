@@ -19,3 +19,14 @@ resource "aws_lambda_function_event_invoke_config" "failure_config" {
     }
   }
 }
+
+# resource "aws_lambda_function_event_invoke_config" "loader_failure_config" {
+#   function_name          = aws_lambda_function.ticker_loader.function_name
+#   maximum_retry_attempts = 0
+
+#   destination_config {
+#     on_failure {
+#       destination = aws_sns_topic.support_alerts.arn
+#     }
+#   }
+# }
