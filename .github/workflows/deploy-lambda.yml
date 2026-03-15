@@ -1,0 +1,70 @@
+name: Deploy Lambda Function
+
+on:
+  # push:
+  #   branches:
+  #     - main  # Deploy only on pushes to main
+  #   paths:
+  #     - 'app/**'
+  #     - 'requirements.txt'
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -t package/
+          pip install pytest
+
+      - name: Run tests with pytest
+        run: |
+          pytest
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_ROLE_ARN }}
+          role-duration-seconds: 1200
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.6.0"
+
+      - name: Terraform Init
+        working-directory: ./terraform
+        run: terraform init
+
+      - name: Terraform Plan
+        working-directory: ./terraform
+        run: terraform plan -out=tfplan
+        env:
+          TF_VAR_bucket_name: ${{ secrets.S3_BUCKET_NAME }}
+          TF_VAR_support_email: ${{ secrets.SUPPORT_EMAIL }}
+          TF_VAR_terraform_execution_role_arn: ${{ secrets.AWS_TERRAFORM_ROLE_ARN }}
+
+      - name: Terraform Apply
+        working-directory: ./terraform
+        run: terraform apply -auto-approve tfplan
+
+      - name: Deployment summary
+        run: |
+          echo "✅ Lambda function deployed successfully via Terraform!"
+          echo "Function: DailyTickerReportGenerator"
+          echo "Commit: ${{ github.sha }}"
+          echo "Triggered by: ${{ github.actor }}"

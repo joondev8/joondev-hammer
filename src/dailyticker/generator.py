@@ -2,9 +2,13 @@ import csv
 import io
 import os
 import requests
+import logging
 from datetime import datetime
 
 tickers = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'TD.TO', 'SHOP.TO']
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 def create_price_report():
     """
@@ -69,6 +73,9 @@ def create_price_report_by_av():
             response.raise_for_status()
             payload = response.json()
 
+            logger.info(f"Fetched data for {ticker} from Alpha Vantage")
+            logger.info(f"Response payload for {ticker}: {payload}")
+
             time_series = payload.get("Time Series (Daily)", {})
             if not time_series:
                 business_date = datetime.now().strftime('%Y-%m-%d')
@@ -86,8 +93,11 @@ def create_price_report_by_av():
                 f"{float(day_data['3. low']):.2f}",
                 f"{float(day_data['4. close']):.2f}",
             ]
+            logger.info(f"Writing data for {ticker} on {business_date}: {row}")
             writer.writerow(row)
-        except Exception:
+            
+        except Exception as e:
+            logger.error(f"Error fetching data for {ticker}: {e}")
             business_date = datetime.now().strftime('%Y-%m-%d')
             writer.writerow([business_date, ticker, "N/A", "N/A", "N/A", "N/A"])
     

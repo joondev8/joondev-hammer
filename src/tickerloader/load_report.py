@@ -28,6 +28,7 @@ def lambda_handler(event, context):
 
     # Write an upload task record with status 'in_progress'
     upload_task_id = insert_upload_task(business_date, bucket, key, data_source, "IN_PROGRESS")
+    inserted = 0
 	
     try:
         # Download, parse, and insert data
@@ -85,6 +86,7 @@ def resolve_s3_location(event: Dict) -> tuple[str, str]:
 def download_csv_from_s3(bucket: str, key: str) -> str:
     logger.info("Downloading ticker file from s3://%s/%s", bucket, key)
     response = s3_client.get_object(Bucket=bucket, Key=key)
+    logger.info("Successfully downloaded ticker file from s3://%s/%s", bucket, key)
     return response["Body"].read().decode("utf-8")
 
 def read_csv_from_local(key: str) -> str:
@@ -93,6 +95,7 @@ def read_csv_from_local(key: str) -> str:
         return file.read()
 
 def parse_rows(csv_content: str) -> List[Dict]:
+    logger.info("Parsing ticker file content")
     reader = csv.DictReader(io.StringIO(csv_content))
     rows = []
 

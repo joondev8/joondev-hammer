@@ -124,17 +124,6 @@ resource "aws_iam_role_policy" "lambda_policy" {
         Effect   = "Allow"
         Action   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
         Resource = "arn:aws:logs:*:*:*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "ec2:CreateNetworkInterface",
-          "ec2:DescribeNetworkInterfaces",
-          "ec2:DeleteNetworkInterface",
-          "ec2:AssignPrivateIpAddresses",
-          "ec2:UnassignPrivateIpAddresses"
-        ]
-        Resource = "*"
       }
     ]
   })

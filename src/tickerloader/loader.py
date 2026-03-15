@@ -18,14 +18,16 @@ def _connect_to_db():
 	return psycopg2.connect(
 		host=os.environ["DB_HOST"],
 		port=int(os.environ.get("DB_PORT", "5432")),
-		dbname=os.environ["DB_NAME"],
+		database=os.environ["DB_NAME"],
 		user=os.environ["DB_USERNAME"],
 		password=os.environ["DB_PASSWORD"],
-		sslmode=os.environ.get("DB_SSLMODE", "require"),
+		sslmode=os.environ.get("DB_SSLMODE", "require")
 	)
 
 
 # insert rows into a table named 'raw_ticker_prices' with columns: date, ticker, open, high, low, close, upload_task_id
+# 
+# Here is an example of how the input rows might look:
 def insert_rows(rows: List[Dict], upload_task_id: int) -> int:
 	if not rows:
 		return 0
@@ -57,14 +59,28 @@ def insert_rows(rows: List[Dict], upload_task_id: int) -> int:
 			logger.warning("Skipping row due to missing required values: %s", row)
 			continue
 
+		numeric_values = [open_value, high_value, low_value, close_value]
+		if any(str(value).strip().upper() == "NA" for value in numeric_values):
+			logger.warning("Skipping row due to NA numeric value: %s", row)
+			continue
+
+		try:
+			open_float = float(open_value)
+			high_float = float(high_value)
+			low_float = float(low_value)
+			close_float = float(close_value)
+		except (TypeError, ValueError):
+			logger.warning("Skipping row due to invalid numeric value: %s", row)
+			continue
+
 		normalized_rows.append(
 			(
 				str(date_value),
 				str(ticker_value),
-				float(open_value),
-				float(high_value),
-				float(low_value),
-				float(close_value),
+				open_float,
+				high_float,
+				low_float,
+				close_float,
 				upload_task_id,
 			)
 		)
@@ -85,13 +101,13 @@ def insert_upload_task(business_date: str, source_bucket: str, source_key: str, 
 	insert_sql = f"""
 		INSERT INTO {schema_name}.upload_task (
 			business_date,
-			data_source,
+			source,
 			file_name,
 			rows_succeeded,
 			rows_failed,
 			status_code
 		)
-		VALUES (%s, %s, %s, %s, %s, %s)
+		VALUES ('2026-03-07', %s, %s, %s, %s, %s)
 		RETURNING id
 	"""
 
@@ -99,9 +115,11 @@ def insert_upload_task(business_date: str, source_bucket: str, source_key: str, 
 		with connection.cursor() as cursor:
 			cursor.execute(
 				insert_sql,
-				(business_date, data_source.upper(), source_key, 0, 0, status),
+				(data_source.upper(), source_key, 0, 0, status),
 			)
 			record = cursor.fetchone()
+			if record is None:
+				raise RuntimeError("INSERT returned no id — row may not have been inserted")
 			return int(record[0])
 
 # update the status of an existing upload task record in the database and return the number of affected rows
