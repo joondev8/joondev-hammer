@@ -1,7 +1,10 @@
 from fastapi import FastAPI, HTTPException
 from datetime import datetime, UTC
 import os
+from dotenv import load_dotenv
 from tickerloader.load_report import load_report_to_db
+
+load_dotenv()
 
 app = FastAPI()
 
