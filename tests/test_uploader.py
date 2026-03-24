@@ -1,7 +1,8 @@
 import boto3
 import pytest
 from moto import mock_aws
-from dailyticker.uploader import upload_to_s3
+from unittest.mock import patch, MagicMock
+from tickercollector.uploader import upload_to_s3
 
 @mock_aws
 def test_upload_to_s3_success():
@@ -23,3 +24,14 @@ def test_upload_to_s3_success():
     
     assert result is True
     assert uploaded_content == content
+
+
+@patch('tickercollector.uploader.boto3.client')
+def test_upload_to_s3_raises_on_failure(mock_boto_client):
+    """Verify that upload_to_s3 re-raises exceptions from S3"""
+    mock_s3 = MagicMock()
+    mock_s3.put_object.side_effect = Exception("S3 service unavailable")
+    mock_boto_client.return_value = mock_s3
+
+    with pytest.raises(Exception, match="S3 service unavailable"):
+        upload_to_s3("test-bucket", "test_file.csv", "content")

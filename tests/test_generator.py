@@ -3,7 +3,7 @@ import csv
 import io
 from unittest.mock import patch, MagicMock
 from datetime import datetime
-from dailyticker.generator import create_price_report, create_price_report_by_av, tickers
+from tickercollector.generator import create_price_report, create_price_report_by_av, tickers
 
 def test_create_price_report_format():
     """Verify that the generator produces a valid CSV with correct headers"""
@@ -32,10 +32,14 @@ def test_create_price_report_format():
         assert len(row) == 6
 
 
+@patch('tickercollector.generator.time.sleep')
 @patch.dict('os.environ', {'AV_API_KEY': 'demo'}, clear=True)
-@patch('dailyticker.generator.requests.get')
-def test_create_price_report_by_av_success(mock_get):
+@patch('tickercollector.generator.datetime')
+@patch('tickercollector.generator.requests.get')
+def test_create_price_report_by_av_success(mock_get, mock_datetime, mock_sleep):
     """Verify AV function returns OHLC data rows for all tickers"""
+    mock_datetime.now.return_value = datetime(2026, 2, 28, 10, 30)
+
     def build_response(symbol):
         response = MagicMock()
         response.raise_for_status.return_value = None
@@ -45,13 +49,15 @@ def test_create_price_report_by_av_success(mock_get):
                     "1. open": "101.1",
                     "2. high": "102.2",
                     "3. low": "100.3",
-                    "4. close": "101.4"
+                    "4. close": "101.4",
+                    "5. volume": "50000"
                 },
                 "2026-02-28": {
                     "1. open": "201.11",
                     "2. high": "202.22",
                     "3. low": "200.33",
-                    "4. close": "201.44"
+                    "4. close": "201.44",
+                    "5. volume": "88331081"
                 }
             }
         }
@@ -61,40 +67,44 @@ def test_create_price_report_by_av_success(mock_get):
 
     content, filename = create_price_report_by_av()
 
-    assert filename.startswith("stock_price_")
+    assert filename.startswith("stock_price_av_")
     assert filename.endswith(".csv")
 
     rows = list(csv.reader(io.StringIO(content)))
-    assert rows[0] == ['Date', 'Ticker', 'Open', 'High', 'Low', 'Close']
+    assert rows[0] == ['Date', 'Ticker', 'Open', 'High', 'Low', 'Close', 'Volume']
     assert len(rows) == len(tickers) + 1
     assert [row[1] for row in rows[1:]] == tickers
 
     for row in rows[1:]:
         assert row[0] == '2026-02-28'
-        assert row[2:] == ['201.11', '202.22', '200.33', '201.44']
+        assert row[2:] == ['201.11', '202.22', '200.33', '201.44', '88331081']
 
 
 @patch.dict('os.environ', {}, clear=True)
-@patch('dailyticker.generator.requests.get')
+@patch('tickercollector.generator.requests.get')
 def test_create_price_report_by_av_without_api_key_returns_na(mock_get):
     """Verify AV function returns N/A rows and skips HTTP when API key is missing"""
     content, _ = create_price_report_by_av()
 
     rows = list(csv.reader(io.StringIO(content)))
-    assert rows[0] == ['Date', 'Ticker', 'Open', 'High', 'Low', 'Close']
+    assert rows[0] == ['Date', 'Ticker', 'Open', 'High', 'Low', 'Close', 'Volume']
     assert len(rows) == len(tickers) + 1
 
     for row, symbol in zip(rows[1:], tickers):
         assert row[1] == symbol
-        assert row[2:] == ['N/A', 'N/A', 'N/A', 'N/A']
+        assert row[2:] == ['N/A', 'N/A', 'N/A', 'N/A', 'N/A']
 
     mock_get.assert_not_called()
 
 
+@patch('tickercollector.generator.time.sleep')
 @patch.dict('os.environ', {'AV_API_KEY': 'demo'}, clear=True)
-@patch('dailyticker.generator.requests.get')
-def test_create_price_report_by_av_handles_request_failure_per_ticker(mock_get):
+@patch('tickercollector.generator.datetime')
+@patch('tickercollector.generator.requests.get')
+def test_create_price_report_by_av_handles_request_failure_per_ticker(mock_get, mock_datetime, mock_sleep):
     """Verify AV function falls back to N/A for failed ticker requests only"""
+    mock_datetime.now.return_value = datetime(2026, 2, 28, 10, 30)
+
     def side_effect(*args, **kwargs):
         symbol = kwargs['params']['symbol']
         if symbol == 'MSFT':
@@ -108,7 +118,8 @@ def test_create_price_report_by_av_handles_request_failure_per_ticker(mock_get):
                     "1. open": "10",
                     "2. high": "12",
                     "3. low": "9",
-                    "4. close": "11"
+                    "4. close": "11",
+                    "5. volume": "99999"
                 }
             }
         }
@@ -122,14 +133,15 @@ def test_create_price_report_by_av_handles_request_failure_per_ticker(mock_get):
     assert len(rows) == len(tickers) + 1
     row_by_symbol = {row[1]: row for row in rows[1:]}
 
-    assert row_by_symbol['MSFT'][2:] == ['N/A', 'N/A', 'N/A', 'N/A']
-    assert row_by_symbol['AAPL'][2:] == ['10.00', '12.00', '9.00', '11.00']
-    assert row_by_symbol['GOOGL'][2:] == ['10.00', '12.00', '9.00', '11.00']
+    assert row_by_symbol['MSFT'][2:] == ['N/A', 'N/A', 'N/A', 'N/A', 'N/A']
+    assert row_by_symbol['AAPL'][2:] == ['10.00', '12.00', '9.00', '11.00', '99999']
+    assert row_by_symbol['GOOGL'][2:] == ['10.00', '12.00', '9.00', '11.00', '99999']
 
 
+@patch('tickercollector.generator.time.sleep')
 @patch.dict('os.environ', {'AV_API_KEY': 'demo'}, clear=True)
-@patch('dailyticker.generator.requests.get')
-def test_create_price_report_by_av_handles_missing_time_series_payload(mock_get):
+@patch('tickercollector.generator.requests.get')
+def test_create_price_report_by_av_handles_missing_time_series_payload(mock_get, mock_sleep):
     """Verify AV function returns N/A rows when response has no Time Series data"""
     response = MagicMock()
     response.raise_for_status.return_value = None
@@ -141,18 +153,22 @@ def test_create_price_report_by_av_handles_missing_time_series_payload(mock_get)
     content, _ = create_price_report_by_av()
     rows = list(csv.reader(io.StringIO(content)))
 
-    assert rows[0] == ['Date', 'Ticker', 'Open', 'High', 'Low', 'Close']
+    assert rows[0] == ['Date', 'Ticker', 'Open', 'High', 'Low', 'Close', 'Volume']
     assert len(rows) == len(tickers) + 1
 
     for row, symbol in zip(rows[1:], tickers):
         assert row[1] == symbol
-        assert row[2:] == ['N/A', 'N/A', 'N/A', 'N/A']
+        assert row[2:] == ['N/A', 'N/A', 'N/A', 'N/A', 'N/A']
 
 
+@patch('tickercollector.generator.time.sleep')
 @patch.dict('os.environ', {'AV_API_KEY': 'demo'}, clear=True)
-@patch('dailyticker.generator.requests.get')
-def test_create_price_report_by_av_handles_malformed_ohlc_values(mock_get):
+@patch('tickercollector.generator.datetime')
+@patch('tickercollector.generator.requests.get')
+def test_create_price_report_by_av_handles_malformed_ohlc_values(mock_get, mock_datetime, mock_sleep):
     """Verify AV function falls back to N/A when OHLC values are not numeric"""
+    mock_datetime.now.return_value = datetime(2026, 2, 28, 10, 30)
+
     def side_effect(*args, **kwargs):
         symbol = kwargs['params']['symbol']
         response = MagicMock()
@@ -165,7 +181,8 @@ def test_create_price_report_by_av_handles_malformed_ohlc_values(mock_get):
                         "1. open": "not-a-number",
                         "2. high": "12",
                         "3. low": "9",
-                        "4. close": "11"
+                        "4. close": "11",
+                        "5. volume": "99999"
                     }
                 }
             }
@@ -176,7 +193,8 @@ def test_create_price_report_by_av_handles_malformed_ohlc_values(mock_get):
                         "1. open": "10",
                         "2. high": "12",
                         "3. low": "9",
-                        "4. close": "11"
+                        "4. close": "11",
+                        "5. volume": "99999"
                     }
                 }
             }
@@ -188,5 +206,5 @@ def test_create_price_report_by_av_handles_malformed_ohlc_values(mock_get):
     rows = list(csv.reader(io.StringIO(content)))
     row_by_symbol = {row[1]: row for row in rows[1:]}
 
-    assert row_by_symbol['AAPL'][2:] == ['N/A', 'N/A', 'N/A', 'N/A']
-    assert row_by_symbol['GOOGL'][2:] == ['10.00', '12.00', '9.00', '11.00']
+    assert row_by_symbol['AAPL'][2:] == ['N/A', 'N/A', 'N/A', 'N/A', 'N/A']
+    assert row_by_symbol['GOOGL'][2:] == ['10.00', '12.00', '9.00', '11.00', '99999']

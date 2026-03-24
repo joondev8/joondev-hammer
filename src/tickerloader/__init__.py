@@ -1,3 +1,3 @@
-from .loader import insert_rows, insert_upload_task, update_upload_task_status
+from .task_manager import new_upload_task, complete_upload_task, fail_upload_task
 
-__all__ = [	"insert_rows", "insert_upload_task", "update_upload_task_status"]
+__all__ = ["new_upload_task", "complete_upload_task", "fail_upload_task"]
