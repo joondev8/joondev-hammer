@@ -8,9 +8,11 @@ provider "aws" {
   }
 }
 
-# locals {
-#   ticker_loader_vpc_enabled = var.lambda_vpc_id != "" && length(var.lambda_subnet_ids) > 0
-# }
+# Fetch the vpc outputs (assumes local state for this example)
+data "terraform_remote_state" "vpc" {
+  backend = "local"
+  config  = { path = "../../joondev-oms-citadel/terraform/vpc/terraform.tfstate" }
+}
 
 # Create the S3 Bucket
 resource "aws_s3_bucket" "report_storage" {
@@ -34,7 +36,8 @@ data "archive_file" "common_libs_zip" {
 resource "aws_lambda_layer_version" "python_dependencies" {
   filename            = "${path.module}/hammer_common_libs.zip"
   layer_name          = "python-dependencies"
-  compatible_runtimes = ["python3.11"]
+  compatible_runtimes = ["python3.12"]
+  source_code_hash    = data.archive_file.common_libs_zip.output_base64sha256
 }
 
 # Lambda Function
@@ -42,8 +45,8 @@ resource "aws_lambda_function" "report_gen" {
   filename         = data.archive_file.lambda_zip.output_path
   function_name    = "DailyTickerReportGenerator"
   role             = aws_iam_role.lambda_exec_role.arn
-  handler          = "dailyticker.generate_report.lambda_handler"
-  runtime          = "python3.11"
+  handler          = "tickercollector.generate_report.lambda_handler"
+  runtime          = "python3.12"
   layers           = [aws_lambda_layer_version.python_dependencies.arn]
   source_code_hash = data.archive_file.lambda_zip.output_base64sha256
   timeout          = 60  # Increased from the default (3s) to 60 seconds
@@ -56,39 +59,6 @@ resource "aws_lambda_function" "report_gen" {
     }
   }
 }
-
-# resource "aws_lambda_function" "ticker_loader" {
-#   filename         = data.archive_file.lambda_zip.output_path
-#   function_name    = "TickerReportLoader"
-#   role             = aws_iam_role.lambda_exec_role.arn
-#   handler          = "tickerloader.load_report.lambda_handler"
-#   runtime          = "python3.11"
-#   layers           = [aws_lambda_layer_version.python_dependencies.arn]
-#   source_code_hash = data.archive_file.lambda_zip.output_base64sha256
-#   timeout          = 120
-#   memory_size      = 256
-
-#   environment {
-#     variables = {
-#       S3_BUCKET_NAME = aws_s3_bucket.report_storage.id
-#       DB_HOST        = var.db_host
-#       DB_PORT        = var.db_port
-#       DB_NAME        = var.db_name
-#       DB_USERNAME    = var.db_username
-#       DB_PASSWORD    = var.db_password
-#       DB_SCHEMA      = var.db_schema
-#       DB_SSLMODE     = var.db_sslmode
-#     }
-#   }
-
-#   dynamic "vpc_config" {
-#     for_each = local.ticker_loader_vpc_enabled ? [1] : []
-#     content {
-#       subnet_ids         = var.lambda_subnet_ids
-#       security_group_ids = [aws_security_group.ticker_loader_lambda_sg[0].id]
-#     }
-#   }
-# }
 
 # IAM Role for Lambda
 resource "aws_iam_role" "lambda_exec_role" {
@@ -128,43 +98,3 @@ resource "aws_iam_role_policy" "lambda_policy" {
     ]
   })
 }
-
-# resource "aws_lambda_permission" "allow_s3_invoke_ticker_loader" {
-#   statement_id  = "AllowExecutionFromS3ForTickerLoader"
-#   action        = "lambda:InvokeFunction"
-#   function_name = aws_lambda_function.ticker_loader.function_name
-#   principal     = "s3.amazonaws.com"
-#   source_arn    = aws_s3_bucket.report_storage.arn
-# }
-
-# resource "aws_s3_bucket_notification" "ticker_loader_trigger" {
-#   bucket = aws_s3_bucket.report_storage.id
-
-#   lambda_function {
-#     lambda_function_arn = aws_lambda_function.ticker_loader.arn
-#     events              = ["s3:ObjectCreated:*"]
-#     filter_prefix       = "stock_price_"
-#     filter_suffix       = ".csv"
-#   }
-
-#   depends_on = [aws_lambda_permission.allow_s3_invoke_ticker_loader]
-# }
-
-# Fetch current region to keep service name dynamic
-# data "aws_region" "current" {}
-
-# resource "aws_vpc_endpoint" "s3" {
-#   vpc_id       = var.lambda_vpc_id
-#   service_name = "com.amazonaws.${data.aws_region.current.id}.s3"
-
-#   # Ensure type is set to Gateway (not Interface)
-#   vpc_endpoint_type = "Gateway"
-
-#   # Automatically associate with your private route tables
-#   # This adds the 'pl-xxxxxx' (S3 Prefix List) route automatically
-#   route_table_ids = var.private_route_table_ids
-
-#   tags = {
-#     Name = "s3-gateway-endpoint"
-#   }
-# }
