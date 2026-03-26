@@ -1,0 +1,112 @@
+# AWS Provider Configuration
+provider "aws" {
+  region = "us-east-1"
+  assume_role {
+    # This is the role that Terraform will assume to create resources. Make sure it has the necessary permissions.
+    role_arn     = var.terraform_execution_role_arn
+    session_name = "TerraformSession"
+  }
+}
+
+# Fetch the vpc outputs (assumes local state for this example)
+data "terraform_remote_state" "vpc" {
+  backend = "local"
+  config  = { path = "../../../joondev-oms-citadel/terraform/vpc/terraform.tfstate" }
+}
+
+data "terraform_remote_state" "ecs" {
+  backend = "local"
+  config  = { path = "../../../joondev-oms-citadel/terraform/app/terraform.tfstate" }
+}
+
+resource "aws_ecr_repository" "hammer_api" {
+  name                 = "hammer-api"
+  image_tag_mutability = "IMMUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+}
+
+# CloudWatch Log Group for ECS task output
+resource "aws_cloudwatch_log_group" "ecs_log_group" {
+  name              = "/ecs/hammer-api"
+  retention_in_days = 7 # Save money by not keeping dev logs forever
+
+  tags = {
+    Environment = "dev"
+    Project     = "hammer"
+  }
+}
+
+# 3. Configure Capacity Providers for Fargate Spot
+resource "aws_ecs_cluster_capacity_providers" "main" {
+  cluster_name = data.terraform_remote_state.ecs.outputs.ecs_cluster_name
+
+  capacity_providers = ["FARGATE", "FARGATE_SPOT"]
+
+  default_capacity_provider_strategy {
+    capacity_provider = "FARGATE_SPOT"
+    weight            = 100
+  }
+}
+
+# ECS Task Definition
+resource "aws_ecs_task_definition" "api" {
+  family                   = "hammer-api"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  cpu                      = 512
+  memory                   = 1024
+  task_role_arn            = aws_iam_role.hammer_task_role.arn
+  execution_role_arn       = aws_iam_role.hammer_exec_role.arn # For pulling from ECR and logging
+
+  container_definitions = jsonencode([{
+    name      = "hammer-api"
+    image     = "925369342450.dkr.ecr.us-east-1.amazonaws.com/hammer-api:${var.image_tag}"
+    essential = true
+
+    environment = [
+      { name = "AWS_REGION", value = "us-east-1" }
+    ]
+
+    environment = [
+      { name = "DB_HOST", value = var.db_host },
+      { name = "DB_PORT", value = tostring(var.db_port) },
+      { name = "DB_NAME", value = var.db_name },
+      { name = "DB_USERNAME", value = var.db_username },
+      { name = "DB_PASSWORD", value = var.db_password },
+      { name = "DB_SCHEMA", value = var.db_schema },
+      { name = "DB_SSLMODE", value = var.db_sslmode }
+    ]
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = "/ecs/hammer-api"
+        "awslogs-region"        = "us-east-1"
+        "awslogs-stream-prefix" = "ecs"
+      }
+    }
+  }])
+}
+
+resource "aws_ecs_service" "api_service" {
+  name            = "hammer-api-service"
+  cluster         = data.terraform_remote_state.ecs.outputs.ecs_cluster_id
+  task_definition = aws_ecs_task_definition.api.arn
+  desired_count   = 1
+
+  capacity_provider_strategy {
+    capacity_provider = "FARGATE_SPOT"
+    weight            = 1
+  }
+
+  network_configuration {
+    subnets          = data.terraform_remote_state.vpc.outputs.public_subnets
+    assign_public_ip = true
+    security_groups  = [aws_security_group.api_sg.id]
+  }
+
+  depends_on = [aws_ecs_cluster_capacity_providers.main]
+}

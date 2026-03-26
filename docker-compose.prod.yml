@@ -1,0 +1,17 @@
+services:
+  api:
+    image: 925369342450.dkr.ecr.us-east-1.amazonaws.com/hammer-api:latest
+    container_name: hammer-api-prod
+    ports:
+      - "8010:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - ENV=production
+    restart: always
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

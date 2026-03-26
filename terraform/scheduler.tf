@@ -1,5 +1,5 @@
 resource "aws_scheduler_schedule" "weekday_report" {
-  name = "generate-report-6pm-weekdays"
+  name = "hammer-price-report-downloader-6pm-weekdays"
 
   flexible_time_window {
     mode = "OFF"
@@ -17,7 +17,7 @@ resource "aws_scheduler_schedule" "weekday_report" {
 
 # IAM Role for Scheduler to trigger Lambda
 resource "aws_iam_role" "scheduler_role" {
-  name = "report_scheduler_role"
+  name = "hammer-lambda-scheduler-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"

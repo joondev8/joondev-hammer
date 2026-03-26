@@ -18,6 +18,8 @@
 - Avoid one-letter variable names.
 - Do not add inline comments unless requested.
 - Do not introduce new dependencies unless required by the task.
+- For Terraform, follow the existing style and structure in `terraform/` (e.g., resource naming, formatting). 
+- For Terraform, use hyphens for resource names and snake_case for variable names.
 
 ## API and Behavior
 - Preserve existing API contracts unless the task explicitly asks for changes.

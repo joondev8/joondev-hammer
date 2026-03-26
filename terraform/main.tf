@@ -26,7 +26,7 @@ data "archive_file" "lambda_zip" {
   output_path = "${path.module}/lambda_function.zip"
 }
 
-data "archive_file" "common_libs_zip" {
+data "archive_file" "hammer_common_libs_zip" {
   type        = "zip"
   source_dir  = "${path.module}/lambda-layer"
   output_path = "${path.module}/hammer_common_libs.zip"
@@ -37,13 +37,13 @@ resource "aws_lambda_layer_version" "python_dependencies" {
   filename            = "${path.module}/hammer_common_libs.zip"
   layer_name          = "python-dependencies"
   compatible_runtimes = ["python3.12"]
-  source_code_hash    = data.archive_file.common_libs_zip.output_base64sha256
+  source_code_hash    = data.archive_file.hammer_common_libs_zip.output_base64sha256
 }
 
 # Lambda Function
 resource "aws_lambda_function" "report_gen" {
   filename         = data.archive_file.lambda_zip.output_path
-  function_name    = "DailyTickerReportGenerator"
+  function_name    = "hammer-price-report-downloader"
   role             = aws_iam_role.lambda_exec_role.arn
   handler          = "tickercollector.generate_report.lambda_handler"
   runtime          = "python3.12"
@@ -62,7 +62,7 @@ resource "aws_lambda_function" "report_gen" {
 
 # IAM Role for Lambda
 resource "aws_iam_role" "lambda_exec_role" {
-  name = "report_generator_lambda_role"
+  name = "hammer-lambda-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -75,7 +75,7 @@ resource "aws_iam_role" "lambda_exec_role" {
 }
 
 # Permissions Policy (S3 Write + Logs)
-resource "aws_iam_role_policy" "lambda_policy" {
+resource "aws_iam_role_policy" "lambda_exec_policy" {
   role = aws_iam_role.lambda_exec_role.id
   policy = jsonencode({
     Version = "2012-10-17"
@@ -84,11 +84,6 @@ resource "aws_iam_role_policy" "lambda_policy" {
         Effect   = "Allow"
         Action   = ["s3:PutObject", "s3:GetObject"]
         Resource = "${aws_s3_bucket.report_storage.arn}/*"
-      },
-      {
-        Effect   = "Allow"
-        Action   = ["sns:Publish"]
-        Resource = "${aws_sns_topic.support_alerts.arn}"
       },
       {
         Effect   = "Allow"
