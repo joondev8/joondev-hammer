@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: hammer-api
+    container_name: joondev-hammer-api
     ports:
       - "8010:8000"
     environment:
