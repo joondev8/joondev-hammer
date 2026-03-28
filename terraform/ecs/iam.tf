@@ -77,8 +77,8 @@ resource "aws_iam_role_policy" "hammer_eventbridge_policy" {
         Resource = [aws_ecs_task_definition.api.arn]
       },
       {
-        Effect   = "Allow"
-        Action   = ["iam:PassRole"]
+        Effect = "Allow"
+        Action = ["iam:PassRole"]
         Resource = [
           aws_iam_role.hammer_task_role.arn,
           aws_iam_role.hammer_exec_role.arn
