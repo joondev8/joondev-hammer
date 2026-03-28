@@ -6,7 +6,7 @@ import requests
 import logging
 from datetime import datetime
 
-tickers = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'TD.TO', 'SHOP.TO']
+tickers = ["AAPL", "GOOGL", "MSFT", "AMZN", "TSLA", "TD.TO", "SHOP.TO"]
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -17,22 +17,22 @@ def create_price_report():
     Generates report data and returns a tuple of (content, filename)
     """
     # Create a unique filename for the output file
-    timestamp = datetime.now().strftime('%Y-%m-%d_%H%M')
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H%M")
     filename = f"stock_price_{timestamp}.csv"
 
     # Extract the actual Business Date from the DataFrame index
     # data.index[-1] gives the timestamp of the last row
-    business_date = datetime.now().strftime('%Y-%m-%d')
+    business_date = datetime.now().strftime("%Y-%m-%d")
 
     # Generate data in memory
     output = io.StringIO()
     writer = csv.writer(output)
 
     # Updated Header with 'Date'
-    writer.writerow(['Date', 'Ticker', 'Open', 'High', 'Low', 'Close'])
-    writer.writerow([business_date, 'AAPL', '250.00', '250.00', '250.00', '250.00'])
-    writer.writerow([business_date, 'GOOGL', '15.50', '15.50', '15.50', '15.50'])
-    writer.writerow([business_date, 'MSFT', '100.50', '100.50', '100.50', '100.50'])
+    writer.writerow(["Date", "Ticker", "Open", "High", "Low", "Close"])
+    writer.writerow([business_date, "AAPL", "250.00", "250.00", "250.00", "250.00"])
+    writer.writerow([business_date, "GOOGL", "15.50", "15.50", "15.50", "15.50"])
+    writer.writerow([business_date, "MSFT", "100.50", "100.50", "100.50", "100.50"])
 
     return output.getvalue(), filename
 
@@ -47,10 +47,12 @@ def create_price_report_by_av():
 
     # Create a unique filename for the output file
     # The filename includes the current timestamp to ensure uniqueness and traceability.
-    # It has the format "stock_price_{source}_YYYY-MM-DD_HHMM.csv", where {source} is the data source e,g, "av" for Alpha Vantage, while YYYY-MM-DD is the current date, and HHMM is the current time in hours and minutes.
+    # It has the format "stock_price_{source}_YYYY-MM-DD_HHMM.csv".
+    # Here {source} is the data source, e.g. "av" for Alpha Vantage.
+    # YYYY-MM-DD is the current date, and HHMM is the current time.
     run_datetime = datetime.now()
-    timestamp = run_datetime.strftime('%Y-%m-%d_%H%M')
-    business_date = run_datetime.strftime('%Y-%m-%d')
+    timestamp = run_datetime.strftime("%Y-%m-%d_%H%M")
+    business_date = run_datetime.strftime("%Y-%m-%d")
     filename = f"stock_price_av_{timestamp}.csv"
 
     # Generate data in memory
@@ -58,7 +60,7 @@ def create_price_report_by_av():
     writer = csv.writer(output)
 
     # Updated Header with 'Date'
-    writer.writerow(['Date', 'Ticker', 'Open', 'High', 'Low', 'Close', 'Volume'])
+    writer.writerow(["Date", "Ticker", "Open", "High", "Low", "Close", "Volume"])
 
     for ticker in tickers:
         if not api_key:
@@ -69,7 +71,7 @@ def create_price_report_by_av():
             "function": "TIME_SERIES_DAILY",
             "symbol": ticker,
             "outputsize": "compact",
-            "apikey": api_key
+            "apikey": api_key,
         }
 
         try:
@@ -81,7 +83,9 @@ def create_price_report_by_av():
 
             if "Information" in payload:
                 logger.warning(f"Rate limit hit for {ticker}: {payload['Information']}")
-                writer.writerow([business_date, ticker, "N/A", "N/A", "N/A", "N/A", "N/A"])
+                writer.writerow(
+                    [business_date, ticker, "N/A", "N/A", "N/A", "N/A", "N/A"]
+                )
                 continue
 
             time_series = payload.get("Time Series (Daily)", {})
@@ -89,7 +93,9 @@ def create_price_report_by_av():
 
             if day_data is None:
                 logger.warning(f"No data for {ticker} on {business_date}, writing N/A")
-                writer.writerow([business_date, ticker, "N/A", "N/A", "N/A", "N/A", "N/A"])
+                writer.writerow(
+                    [business_date, ticker, "N/A", "N/A", "N/A", "N/A", "N/A"]
+                )
                 continue
 
             row = [
@@ -99,7 +105,7 @@ def create_price_report_by_av():
                 f"{float(day_data['2. high']):.2f}",
                 f"{float(day_data['3. low']):.2f}",
                 f"{float(day_data['4. close']):.2f}",
-                day_data['5. volume'],
+                day_data["5. volume"],
             ]
             logger.info(f"Writing data for {ticker} on {business_date}: {row}")
             writer.writerow(row)
@@ -115,14 +121,15 @@ def create_price_report_by_av():
 
 
 def main():
-    logging.basicConfig(level=logging.INFO, format='%(levelname)s %(message)s')
-    
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+
     content, filename = create_price_report_by_av()
     print(f"Generated report: {filename}")
     print(content)
-    with open(filename, 'w', newline='') as f:
+    with open(filename, "w", newline="") as f:
         f.write(content)
     print(f"Saved to {filename}")
+
 
 if __name__ == "__main__":
     main()

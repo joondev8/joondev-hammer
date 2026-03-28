@@ -8,6 +8,7 @@ load_dotenv()
 
 app = FastAPI()
 
+
 @app.get("/health")
 async def healthcheck():
     """
@@ -18,8 +19,9 @@ async def healthcheck():
         "status": "healthy",
         "service": "hammer-service",
         "timestamp": datetime.now(UTC).isoformat(),
-        "version": "1.0.0"
+        "version": "1.0.0",
     }
+
 
 @app.post("/ticker-files/{filename}/load")
 async def load_ticker_file_from_s3(filename: str):
@@ -28,18 +30,13 @@ async def load_ticker_file_from_s3(filename: str):
         raise HTTPException(status_code=500, detail="S3_BUCKET_NAME is not configured")
 
     event = {
-        "Records": [{
-            "s3": {
-                "bucket": {"name": bucket},
-                "object": {"key": filename}
-            }
-        }]
+        "Records": [{"s3": {"bucket": {"name": bucket}, "object": {"key": filename}}}]
     }
 
     try:
         result = load_report_to_db(event, None)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as error:
+        raise HTTPException(status_code=500, detail=str(error))
 
     if result.get("status") == "failed":
         raise HTTPException(status_code=500, detail=result)

@@ -17,6 +17,7 @@ def load_report_to_db(event, context):
     logger.info("Load completed: %s", json.dumps(result))
     return result
 
+
 def resolve_s3_location(event: Dict) -> tuple[str, str]:
     # EventBridge S3 event shape
     detail = event.get("detail", {})
@@ -35,21 +36,27 @@ def resolve_s3_location(event: Dict) -> tuple[str, str]:
         if bucket and key:
             return bucket, key
 
-    raise ValueError("Unable to resolve S3 location. Event structure may be invalid or missing required information.")
+    raise ValueError(
+        "Unable to resolve S3 location. Event structure may be invalid or missing required information."
+    )
+
 
 def main():
-    logging.basicConfig(level=logging.INFO, format='%(levelname)s %(message)s')
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
     bucket = os.environ.get("S3_BUCKET_NAME")
     key = os.environ.get("S3_OBJECT_KEY")
     if not bucket or not key:
-        logger.error("S3_BUCKET_NAME and S3_OBJECT_KEY environment variables must be set")
+        logger.error(
+            "S3_BUCKET_NAME and S3_OBJECT_KEY environment variables must be set"
+        )
         sys.exit(1)
 
     logger.info(f"Starting load process for bucket: {bucket}, key: {key}")
 
     result = _load_report_to_db(bucket, key)
     logger.info("Load completed: %s", json.dumps(result))
+
 
 if __name__ == "__main__":
     main()
