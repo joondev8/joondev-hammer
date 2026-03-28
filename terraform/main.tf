@@ -19,6 +19,11 @@ resource "aws_s3_bucket" "report_storage" {
   bucket = var.bucket_name
 }
 
+resource "aws_s3_bucket_notification" "report_storage_eventbridge" {
+  bucket      = aws_s3_bucket.report_storage.id
+  eventbridge = true
+}
+
 # Automatically zip the source code
 data "archive_file" "lambda_zip" {
   type        = "zip"

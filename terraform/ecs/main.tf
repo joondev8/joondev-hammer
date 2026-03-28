@@ -31,7 +31,7 @@ resource "aws_ecr_repository" "hammer_api" {
 # CloudWatch Log Group for ECS task output
 resource "aws_cloudwatch_log_group" "ecs_log_group" {
   name              = "/ecs/hammer-api"
-  retention_in_days = 7 # Save money by not keeping dev logs forever
+  retention_in_days = 14 # Save money by not keeping dev logs forever
 
   tags = {
     Environment = "dev"
@@ -40,16 +40,16 @@ resource "aws_cloudwatch_log_group" "ecs_log_group" {
 }
 
 # 3. Configure Capacity Providers for Fargate Spot
-resource "aws_ecs_cluster_capacity_providers" "main" {
-  cluster_name = data.terraform_remote_state.ecs.outputs.ecs_cluster_name
+# resource "aws_ecs_cluster_capacity_providers" "main" {
+#   cluster_name = data.terraform_remote_state.ecs.outputs.ecs_cluster_name
 
-  capacity_providers = ["FARGATE", "FARGATE_SPOT"]
+#   capacity_providers = ["FARGATE", "FARGATE_SPOT"]
 
-  default_capacity_provider_strategy {
-    capacity_provider = "FARGATE_SPOT"
-    weight            = 100
-  }
-}
+#   default_capacity_provider_strategy {
+#     capacity_provider = "FARGATE_SPOT"
+#     weight            = 100
+#   }
+# }
 
 # ECS Task Definition
 resource "aws_ecs_task_definition" "api" {
@@ -67,10 +67,8 @@ resource "aws_ecs_task_definition" "api" {
     essential = true
 
     environment = [
-      { name = "AWS_REGION", value = "us-east-1" }
-    ]
-
-    environment = [
+      { name = "AWS_REGION", value = "us-east-1" },
+      { name = "S3_BUCKET_NAME", value = var.bucket_name },
       { name = "DB_HOST", value = var.db_host },
       { name = "DB_PORT", value = tostring(var.db_port) },
       { name = "DB_NAME", value = var.db_name },
@@ -91,22 +89,71 @@ resource "aws_ecs_task_definition" "api" {
   }])
 }
 
-resource "aws_ecs_service" "api_service" {
-  name            = "hammer-api-service"
-  cluster         = data.terraform_remote_state.ecs.outputs.ecs_cluster_id
-  task_definition = aws_ecs_task_definition.api.arn
-  desired_count   = 1
+# resource "aws_ecs_service" "api_service" {
+#   name            = "hammer-api-service"
+#   cluster         = data.terraform_remote_state.ecs.outputs.ecs_cluster_id
+#   task_definition = aws_ecs_task_definition.api.arn
+#   desired_count   = 1
 
-  capacity_provider_strategy {
-    capacity_provider = "FARGATE_SPOT"
-    weight            = 1
+#   capacity_provider_strategy {
+#     capacity_provider = "FARGATE_SPOT"
+#     weight            = 1
+#   }
+
+#   network_configuration {
+#     subnets          = data.terraform_remote_state.vpc.outputs.public_subnets
+#     assign_public_ip = true
+#     security_groups  = [aws_security_group.api_sg.id]
+#   }
+
+#   depends_on = [aws_ecs_cluster_capacity_providers.main]
+# }
+
+resource "aws_cloudwatch_event_rule" "s3_object_created" {
+  name        = "hammer-s3-object-created"
+  description = "Triggers ECS task when a new file is uploaded to the report storage bucket"
+
+  event_pattern = jsonencode({
+    source      = ["aws.s3"]
+    detail-type = ["Object Created"]
+    detail = {
+      bucket = { name = [var.bucket_name] }
+    }
+  })
+}
+
+resource "aws_cloudwatch_event_target" "ecs_task" {
+  rule     = aws_cloudwatch_event_rule.s3_object_created.name
+  arn      = data.terraform_remote_state.ecs.outputs.ecs_cluster_id
+  role_arn = aws_iam_role.hammer_eventbridge_role.arn
+
+  ecs_target {
+    task_definition_arn = aws_ecs_task_definition.api.arn
+    task_count          = 1
+    launch_type         = "FARGATE"
+
+    network_configuration {
+      subnets          = data.terraform_remote_state.vpc.outputs.public_subnets
+      assign_public_ip = true
+      security_groups  = [aws_security_group.api_sg.id]
+    }
   }
 
-  network_configuration {
-    subnets          = data.terraform_remote_state.vpc.outputs.public_subnets
-    assign_public_ip = true
-    security_groups  = [aws_security_group.api_sg.id]
+  input_transformer {
+    input_paths = {
+      bucket = "$.detail.bucket.name"
+      key    = "$.detail.object.key"
+    }
+    input_template = <<-EOT
+      {
+        "containerOverrides": [{
+          "name": "hammer-api",
+          "environment": [
+            {"name": "S3_BUCKET_NAME", "value": <bucket>},
+            {"name": "S3_OBJECT_KEY", "value": <key>}
+          ]
+        }]
+      }
+    EOT
   }
-
-  depends_on = [aws_ecs_cluster_capacity_providers.main]
 }

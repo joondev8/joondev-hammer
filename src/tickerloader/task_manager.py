@@ -1,7 +1,8 @@
-import os
 import logging
-import psycopg2
+import os
 from datetime import date
+
+from tickerloader.db import get_connection
 
 # This module provides functions to manage upload tasks in the database, including inserting new tasks and updating their 
 # status. The upload task records the business date, source bucket, source key, row count, row inserted and status of the
@@ -9,16 +10,6 @@ from datetime import date
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
-
-def _connect_to_db():
-    return psycopg2.connect(
-        host=os.environ["DB_HOST"],
-        port=int(os.environ.get("DB_PORT", "5432")),
-        database=os.environ["DB_NAME"],
-        user=os.environ["DB_USERNAME"],
-        password=os.environ["DB_PASSWORD"],
-        sslmode=os.environ.get("DB_SSLMODE", "require")
-    )
 
 def new_upload_task(business_date: date, bucket: str, key: str) -> int:
     """
@@ -56,7 +47,7 @@ def insert_upload_task(business_date: date, source_bucket: str, source_key: str,
 		RETURNING task_id
 	"""
 
-    with _connect_to_db() as connection:
+    with get_connection() as connection:
         with connection.cursor() as cursor:            
             cursor.execute(
                 insert_sql,
@@ -76,7 +67,7 @@ def update_upload_task_status(upload_task_id: int, row_count: int, rows_inserted
 		WHERE task_id = %s
 	"""
 
-    with _connect_to_db() as connection:
+    with get_connection() as connection:
         with connection.cursor() as cursor:
             cursor.execute(update_sql, (status, row_count, rows_inserted, error_message, upload_task_id))
             return cursor.rowcount

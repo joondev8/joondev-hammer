@@ -6,8 +6,8 @@ import os
 from typing import Dict, List
 
 import boto3
-import psycopg2
 
+from tickerloader.db import get_connection
 from tickerloader.task_manager import complete_upload_task, fail_upload_task, new_upload_task
 from datetime import datetime
 
@@ -16,16 +16,6 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 s3_client = boto3.client("s3")
-
-def _connect_to_db():
-    return psycopg2.connect(
-        host=os.environ["DB_HOST"],
-        port=int(os.environ.get("DB_PORT", "5432")),
-        database=os.environ["DB_NAME"],
-        user=os.environ["DB_USERNAME"],
-        password=os.environ["DB_PASSWORD"],
-        sslmode=os.environ.get("DB_SSLMODE", "require")
-    )
 
 def download_csv_from_s3(bucket: str, key: str) -> str:
     logger.info("Downloading ticker file from s3://%s/%s", bucket, key)
@@ -64,12 +54,7 @@ def load_report_to_db(bucket: str, filename: str):
     except Exception as e:
         fail_upload_task(upload_task_id, str(e))
         logger.error("Error loading report from s3://%s/%s: %s", bucket, filename, str(e))
-        return {
-            "status": "failed",
-            "source_bucket": bucket,
-            "source_key": filename,
-            "error": str(e),
-        }
+        raise
 
 def parse_rows(csv_content: str) -> List[Dict]:
     logger.info("Parsing ticker file content")
@@ -153,10 +138,10 @@ def insert_rows(rows: List[Dict], upload_task_id: int) -> int:
     if not normalized_rows:
         return 0
 
-    with _connect_to_db() as connection:
+    with get_connection() as connection:
         with connection.cursor() as cursor:
             cursor.executemany(insert_sql, normalized_rows)
-            return cursor.rowcount
+            return len(normalized_rows)
 
 def main():
     logging.basicConfig(level=logging.INFO, format='%(levelname)s %(message)s')
