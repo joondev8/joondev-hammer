@@ -21,7 +21,7 @@ data "terraform_remote_state" "ecs" {
 
 resource "aws_ecr_repository" "hammer_api" {
   name                 = "hammer-api"
-  image_tag_mutability = "IMMUTABLE"
+  image_tag_mutability = "MUTABLE"
 
   image_scanning_configuration {
     scan_on_push = true

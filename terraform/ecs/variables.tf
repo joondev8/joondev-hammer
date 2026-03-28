@@ -6,6 +6,7 @@ variable "terraform_execution_role_arn" {
 variable "image_tag" {
   type        = string
   description = "The tag of the image to deploy"
+  default     = "latest"
 }
 
 variable "bucket_name" {
