@@ -46,6 +46,8 @@ def main():
         logger.error("S3_BUCKET_NAME and S3_OBJECT_KEY environment variables must be set")
         sys.exit(1)
 
+    logger.info(f"Starting load process for bucket: {bucket}, key: {key}")
+
     result = _load_report_to_db(bucket, key)
     logger.info("Load completed: %s", json.dumps(result))
 
