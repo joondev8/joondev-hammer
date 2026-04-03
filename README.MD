@@ -14,10 +14,10 @@ The repository contains two flows and a REST API:
    - Uploads generated content to S3 (`boto3`)
 
 2. **Load flow** (AWS ECS)
-   - Resolves S3 location from EventBridge or S3 notification event records, or environment-variable fallback
+   - Resolves S3 location from EventBridge or S3 notification event records
    - Downloads and parses CSV rows
    - Inserts data into `market_data.raw_ticker_prices`
-   - Tracks load status in `market_data.upload_task` (`IN_PROGRESS` → `DONE` / `ERROR`), including `rows_succeeded` and `rows_failed`
+   - Tracks load status in `market_data.upload_task` (`IN_PROGRESS` → `DONE` / `ERROR`), including `row_count`, `rows_inserted`, and `error_message`
 
 3. **REST API** (FastAPI / Docker)
    - `GET /health` — liveness check
@@ -45,13 +45,11 @@ joondev-hammer/
 ├── terraform/
 │   ├── main.tf
 │   ├── scheduler.tf
-│   ├── terraform.tfvars
 │   ├── variables.tf
 │   └── ecs/
 │       ├── iam.tf
 │       ├── main.tf
 │       ├── security.tf
-│       ├── terraform.tfvars
 │       └── variables.tf
 ├── tests/
 │   ├── test_generator.py
@@ -84,7 +82,8 @@ pip install -r requirements.txt
 - `AV_API_KEY` (optional): Alpha Vantage API key; when missing, report values fall back to `N/A`
 
 ### `tickerloader` / API
-- `S3_BUCKET_NAME` and `TICKER_FILE_KEY` (optional fallback when event has no S3 record)
+- `S3_BUCKET_NAME` (required for the FastAPI endpoint and CLI mode)
+- `S3_OBJECT_KEY` (required for CLI mode via `python -m tickerloader.load_report`)
 - `DB_HOST` (required): RDS endpoint
 - `DB_PORT` (optional): database port, default `5432`
 - `DB_NAME` (required): PostgreSQL database name
@@ -92,7 +91,9 @@ pip install -r requirements.txt
 - `DB_PASSWORD` (required): database password
 - `DB_SCHEMA` (optional): schema name, default `market_data`
 - `DB_SSLMODE` (optional): SSL mode, default `require`
-- `DEBUG` (optional): set to `"true"` to read CSV from local file path in `TICKER_FILE_KEY`
+- `DB_AUTH_MODE` (optional): `password` (default) or `iam`
+- `AWS_REGION` (required when `DB_AUTH_MODE=iam`): used to generate the RDS IAM auth token
+- `DB_POOL_MAX_CONN` (optional): connection pool size, default `5`
 
 ## Usage
 
@@ -153,20 +154,21 @@ print(result)
 ### Package-mode local run (loader)
 
 ```bash
-python -m tickerloader
+python -m tickerloader.load_report
 ```
 
-If you run from repository root, set `PYTHONPATH=src` first (or use the VS Code launch profile already configured).
+If you run from repository root, set `PYTHONPATH=src` first.
 
 ## Known assumptions
 
-- `tickerloader.load_report.load_report_to_db` derives `data_source` from `key.split("_")[2]`.
-- It derives `business_date` from the filename portion of the key (`key.split("_")[-1]`, without `.csv`).
-- Expected key format for correct metadata extraction is `stock_price_{source}_YYYY-MM-DD.csv` (example: `stock_price_av_2026-02-28.csv`).
-- Keys not matching this format may fail during metadata parsing (for example, `IndexError`) or produce incorrect `data_source` / `business_date` values in `upload_tasks`.
+- `tickerloader.loader.load_report_to_db` derives `business_date` from `filename.split("_")[-2]`.
+- Expected key format for correct metadata extraction is `stock_price_{source}_YYYY-MM-DD_HHMM.csv` (example: `stock_price_av_2026-03-09_2200.csv`).
+- Keys not matching this format may fail during metadata parsing or date conversion.
 
 ## Notes
 
 - `pytest.ini` sets `pythonpath = src`, so imports use `tickercollector.*` and `tickerloader.*`.
 - Loader row parsing expects CSV columns: `Date`, `Ticker`, `Open`, `High`, `Low`, `Close`.
+- The generator currently writes an additional `Volume` column; the loader ignores it.
+- `tickerloader.load_report.resolve_s3_location` supports EventBridge S3 events and S3 notification event shapes.
 - `db/001_create_ticker_prices.sql` defines the PostgreSQL schema used by loader persistence.
