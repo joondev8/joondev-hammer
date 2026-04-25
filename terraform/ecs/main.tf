@@ -31,12 +31,16 @@ resource "aws_ecr_repository" "hammer_api" {
 # CloudWatch Log Group for ECS task output
 resource "aws_cloudwatch_log_group" "ecs_log_group" {
   name              = "/ecs/hammer-api"
-  retention_in_days = 14 # Save money by not keeping dev logs forever
+  retention_in_days = 7 # Save money by not keeping dev logs forever
 
   tags = {
     Environment = "dev"
     Project     = "hammer"
   }
+}
+
+resource "aws_ecs_cluster" "main" {
+  name = "hammer-cluster-dev"
 }
 
 # 3. Configure Capacity Providers for Fargate Spot
@@ -124,7 +128,7 @@ resource "aws_cloudwatch_event_rule" "s3_object_created" {
 
 resource "aws_cloudwatch_event_target" "ecs_task" {
   rule     = aws_cloudwatch_event_rule.s3_object_created.name
-  arn      = data.terraform_remote_state.ecs.outputs.ecs_cluster_id
+  arn      = aws_ecs_cluster.main.arn
   role_arn = aws_iam_role.hammer_eventbridge_role.arn
 
   ecs_target {
@@ -133,7 +137,7 @@ resource "aws_cloudwatch_event_target" "ecs_task" {
     launch_type         = "FARGATE"
 
     network_configuration {
-      subnets          = data.terraform_remote_state.vpc.outputs.public_subnets
+      subnets          = data.terraform_remote_state.vpc.outputs.private_subnets
       assign_public_ip = true
       security_groups  = [aws_security_group.api_sg.id]
     }
