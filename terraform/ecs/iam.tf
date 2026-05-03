@@ -87,3 +87,69 @@ resource "aws_iam_role_policy" "hammer_eventbridge_policy" {
     ]
   })
 }
+
+# IAM role for the collector ECS task (s3:PutObject only)
+resource "aws_iam_role" "hammer_collector_task_role" {
+  name = "hammer-collector-task-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
+      Principal = { Service = "ecs-tasks.amazonaws.com" }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "hammer_collector_task_s3_policy" {
+  name = "hammer-collector-task-s3-policy"
+  role = aws_iam_role.hammer_collector_task_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["s3:PutObject"]
+      Resource = "arn:aws:s3:::${var.bucket_name}/*"
+    }]
+  })
+}
+
+# IAM role for EventBridge Scheduler to trigger the collector ECS task
+resource "aws_iam_role" "collector_scheduler_role" {
+  name = "hammer-collector-scheduler-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
+      Principal = { Service = "scheduler.amazonaws.com" }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "collector_scheduler_policy" {
+  name = "hammer-collector-scheduler-policy"
+  role = aws_iam_role.collector_scheduler_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["ecs:RunTask"]
+        Resource = [aws_ecs_task_definition.collector.arn]
+      },
+      {
+        Effect = "Allow"
+        Action = ["iam:PassRole"]
+        Resource = [
+          aws_iam_role.hammer_collector_task_role.arn,
+          aws_iam_role.hammer_exec_role.arn
+        ]
+      }
+    ]
+  })
+}

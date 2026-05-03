@@ -49,6 +49,12 @@ variable "db_sslmode" {
   default = "require"
 }
 
+variable "av_api_key" {
+  description = "Alpha Vantage API key used by the report collector"
+  type        = string
+  sensitive   = true
+}
+
 
 
 

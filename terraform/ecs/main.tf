@@ -8,15 +8,28 @@ provider "aws" {
   }
 }
 
-# Fetch the vpc outputs (assumes local state for this example)
-data "terraform_remote_state" "vpc" {
-  backend = "local"
-  config  = { path = "../../../joondev-oms-citadel/terraform/vpc/terraform.tfstate" }
+terraform {
+  backend "s3" {}
 }
 
-data "terraform_remote_state" "ecs" {
-  backend = "local"
-  config  = { path = "../../../joondev-oms-citadel/terraform/app/terraform.tfstate" }
+# Fetch the vpc outputs (assumes local state for this example)
+data "terraform_remote_state" "vpc" {
+  backend = "s3"
+  config = {
+    bucket  = "joondev-tfstate-925369342450"
+    key     = "citadel/dev/vpc/terraform.tfstate"
+    region  = "us-east-1"
+  }
+}
+
+# S3 Bucket for report storage (moved from lambda module)
+resource "aws_s3_bucket" "report_storage" {
+  bucket = var.bucket_name
+}
+
+resource "aws_s3_bucket_notification" "report_storage_eventbridge" {
+  bucket      = aws_s3_bucket.report_storage.id
+  eventbridge = true
 }
 
 resource "aws_ecr_repository" "hammer_api" {
@@ -160,4 +173,48 @@ resource "aws_cloudwatch_event_target" "ecs_task" {
       }
     EOT
   }
+}
+
+# CloudWatch Log Group for the collector task
+resource "aws_cloudwatch_log_group" "collector_log_group" {
+  name              = "/ecs/hammer-collector"
+  retention_in_days = 7
+
+  tags = {
+    Environment = "dev"
+    Project     = "hammer"
+  }
+}
+
+# ECS Task Definition for the scheduled report collector
+resource "aws_ecs_task_definition" "collector" {
+  family                   = "hammer-collector"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  cpu                      = 256
+  memory                   = 512
+  task_role_arn            = aws_iam_role.hammer_collector_task_role.arn
+  execution_role_arn       = aws_iam_role.hammer_exec_role.arn
+
+  container_definitions = jsonencode([{
+    name      = "hammer-collector"
+    image     = "925369342450.dkr.ecr.us-east-1.amazonaws.com/hammer-api:${var.image_tag}"
+    essential = true
+    command   = ["python", "-m", "tickercollector.generate_report"]
+
+    environment = [
+      { name = "AWS_REGION", value = "us-east-1" },
+      { name = "S3_BUCKET_NAME", value = var.bucket_name },
+      { name = "AV_API_KEY", value = var.av_api_key }
+    ]
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = "/ecs/hammer-collector"
+        "awslogs-region"        = "us-east-1"
+        "awslogs-stream-prefix" = "ecs"
+      }
+    }
+  }])
 }
