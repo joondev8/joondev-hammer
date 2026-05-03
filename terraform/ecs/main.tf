@@ -16,9 +16,9 @@ terraform {
 data "terraform_remote_state" "vpc" {
   backend = "s3"
   config = {
-    bucket  = "joondev-tfstate-925369342450"
-    key     = "citadel/dev/vpc/terraform.tfstate"
-    region  = "us-east-1"
+    bucket = "joondev-tfstate-925369342450"
+    key    = "citadel/dev/vpc/terraform.tfstate"
+    region = "us-east-1"
   }
 }
 
@@ -32,8 +32,8 @@ resource "aws_s3_bucket_notification" "report_storage_eventbridge" {
   eventbridge = true
 }
 
-resource "aws_ecr_repository" "hammer_api" {
-  name                 = "hammer-api"
+resource "aws_ecr_repository" "hammer_service" {
+  name                 = "hammer-service"
   image_tag_mutability = "MUTABLE"
 
   image_scanning_configuration {
@@ -43,7 +43,7 @@ resource "aws_ecr_repository" "hammer_api" {
 
 # CloudWatch Log Group for ECS task output
 resource "aws_cloudwatch_log_group" "ecs_log_group" {
-  name              = "/ecs/hammer-api"
+  name              = "/ecs/hammer-loader"
   retention_in_days = 7 # Save money by not keeping dev logs forever
 
   tags = {
@@ -69,8 +69,8 @@ resource "aws_ecs_cluster" "main" {
 # }
 
 # ECS Task Definition
-resource "aws_ecs_task_definition" "api" {
-  family                   = "hammer-api"
+resource "aws_ecs_task_definition" "loader" {
+  family                   = "hammer-loader"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
   cpu                      = 512
@@ -79,8 +79,8 @@ resource "aws_ecs_task_definition" "api" {
   execution_role_arn       = aws_iam_role.hammer_exec_role.arn # For pulling from ECR and logging
 
   container_definitions = jsonencode([{
-    name      = "hammer-api"
-    image     = "925369342450.dkr.ecr.us-east-1.amazonaws.com/hammer-api:${var.image_tag}"
+    name      = "hammer-loader"
+    image     = "925369342450.dkr.ecr.us-east-1.amazonaws.com/hammer-service:${var.image_tag}"
     essential = true
 
     environment = [
@@ -98,7 +98,7 @@ resource "aws_ecs_task_definition" "api" {
     logConfiguration = {
       logDriver = "awslogs"
       options = {
-        "awslogs-group"         = "/ecs/hammer-api"
+        "awslogs-group"         = "/ecs/hammer-loader"
         "awslogs-region"        = "us-east-1"
         "awslogs-stream-prefix" = "ecs"
       }
@@ -120,7 +120,7 @@ resource "aws_ecs_task_definition" "api" {
 #   network_configuration {
 #     subnets          = data.terraform_remote_state.vpc.outputs.public_subnets
 #     assign_public_ip = true
-#     security_groups  = [aws_security_group.api_sg.id]
+#     security_groups  = [aws_security_group.hammer_sg.id]
 #   }
 
 #   depends_on = [aws_ecs_cluster_capacity_providers.main]
@@ -145,14 +145,14 @@ resource "aws_cloudwatch_event_target" "ecs_task" {
   role_arn = aws_iam_role.hammer_eventbridge_role.arn
 
   ecs_target {
-    task_definition_arn = aws_ecs_task_definition.api.arn
+    task_definition_arn = aws_ecs_task_definition.loader.arn
     task_count          = 1
     launch_type         = "FARGATE"
 
     network_configuration {
       subnets          = data.terraform_remote_state.vpc.outputs.private_subnets
       assign_public_ip = true
-      security_groups  = [aws_security_group.api_sg.id]
+      security_groups  = [aws_security_group.hammer_sg.id]
     }
   }
 
@@ -164,7 +164,7 @@ resource "aws_cloudwatch_event_target" "ecs_task" {
     input_template = <<-EOT
       {
         "containerOverrides": [{
-          "name": "hammer-api",
+          "name": "hammer-loader",
           "environment": [
             {"name": "S3_BUCKET_NAME", "value": <bucket>},
             {"name": "S3_OBJECT_KEY", "value": <key>}
@@ -198,7 +198,7 @@ resource "aws_ecs_task_definition" "collector" {
 
   container_definitions = jsonencode([{
     name      = "hammer-collector"
-    image     = "925369342450.dkr.ecr.us-east-1.amazonaws.com/hammer-api:${var.image_tag}"
+    image     = "925369342450.dkr.ecr.us-east-1.amazonaws.com/hammer-service:${var.image_tag}"
     essential = true
     command   = ["python", "-m", "tickercollector.generate_report"]
 

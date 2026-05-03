@@ -21,7 +21,7 @@ resource "aws_scheduler_schedule" "weekday_collector" {
       network_configuration {
         subnets          = data.terraform_remote_state.vpc.outputs.private_subnets
         assign_public_ip = true
-        security_groups  = [aws_security_group.api_sg.id]
+        security_groups  = [aws_security_group.hammer_sg.id]
       }
     }
   }

@@ -1,5 +1,5 @@
-resource "aws_security_group" "api_sg" {
-  name        = "hammer-api-sg"
+resource "aws_security_group" "hammer_sg" {
+  name        = "hammer-sg"
   description = "Security group for ECS Fargate API task"
   vpc_id      = data.terraform_remote_state.vpc.outputs.vpc_id
 
@@ -20,7 +20,7 @@ resource "aws_security_group" "api_sg" {
   }
 
   tags = {
-    Name        = "hammer-api-sg"
+    Name        = "hammer-sg"
     Environment = "dev"
   }
 }

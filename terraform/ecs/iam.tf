@@ -74,7 +74,7 @@ resource "aws_iam_role_policy" "hammer_eventbridge_policy" {
       {
         Effect   = "Allow"
         Action   = ["ecs:RunTask"]
-        Resource = [aws_ecs_task_definition.api.arn]
+        Resource = [aws_ecs_task_definition.loader.arn]
       },
       {
         Effect = "Allow"
