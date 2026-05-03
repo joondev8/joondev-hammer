@@ -7,21 +7,23 @@ Python project for daily stock ticker reporting:
 
 ## Overview
 
-The repository contains two flows and a REST API:
+The repository contains two flows and a REST API shell:
 
-1. **Generate + upload flow** (AWS Lambda)
+1. **Generate + upload flow** (standalone Python script)
    - Builds CSV content for configured tickers using Alpha Vantage (`requests`)
    - Uploads generated content to S3 (`boto3`)
+   - Entry point: `python -m tickercollector.generate_report`
 
 2. **Load flow** (AWS ECS)
    - Resolves S3 location from EventBridge or S3 notification event records
    - Downloads and parses CSV rows
    - Inserts data into `market_data.raw_ticker_prices`
    - Tracks load status in `market_data.upload_task` (`IN_PROGRESS` → `DONE` / `ERROR`), including `row_count`, `rows_inserted`, and `error_message`
+   - Default container entry point: `python -m tickerloader.load_report`
 
 3. **REST API** (FastAPI / Docker)
-   - `GET /health` — liveness check
-   - `POST /ticker-files/{filename}/load` — triggers a load from S3 for the given file
+   - The FastAPI application is defined in `main.py` but all routes are currently commented out.
+   - Previously planned endpoints: `GET /health` and `POST /ticker-files/{filename}/load`
 
 ## Project Structure
 
@@ -43,17 +45,17 @@ joondev-hammer/
 ├── db/
 │   └── 001_create_ticker_prices.sql
 ├── terraform/
-│   ├── main.tf
-│   ├── scheduler.tf
-│   ├── variables.tf
 │   └── ecs/
 │       ├── iam.tf
 │       ├── main.tf
+│       ├── scheduler.tf
 │       ├── security.tf
 │       └── variables.tf
 ├── tests/
 │   ├── test_generator.py
+│   ├── test_load_report.py
 │   ├── test_loader.py
+│   ├── test_task_manager.py
 │   └── test_uploader.py
 ├── Dockerfile
 ├── docker-compose.yml
@@ -118,18 +120,28 @@ cd src
 uvicorn main:app --reload --port 8010
 ```
 
+### Run generator (standalone script)
+
+```bash
+cd src
+python -m tickercollector.generate_report
+```
+
+Requires `S3_BUCKET_NAME` (and optionally `AV_API_KEY`) to be set.
+
 ### Lambda handler
 
-- Generator/upload: `tickercollector.generate_report.lambda_handler`
+> ⚠️ `tickercollector.generate_report.lambda_handler` is currently commented out. The generator runs as a standalone script (see above).
 
 ### Local invocation example (generator)
 
 ```python
-from tickercollector.generate_report import lambda_handler
+from tickercollector.generate_report import main
 
-result = lambda_handler({}, None)
-print(result)
+main()
 ```
+
+Requires `S3_BUCKET_NAME` to be set in your environment.
 
 ### Local invocation example (loader)
 
@@ -157,7 +169,7 @@ print(result)
 python -m tickerloader.load_report
 ```
 
-If you run from repository root, set `PYTHONPATH=src` first.
+If you run from repository root, set `PYTHONPATH=src` first. This is also the default `CMD` used by the Docker image.
 
 ## Known assumptions
 
@@ -172,3 +184,4 @@ If you run from repository root, set `PYTHONPATH=src` first.
 - The generator currently writes an additional `Volume` column; the loader ignores it.
 - `tickerloader.load_report.resolve_s3_location` supports EventBridge S3 events and S3 notification event shapes.
 - `db/001_create_ticker_prices.sql` defines the PostgreSQL schema used by loader persistence.
+- `main.py` defines a FastAPI application; all route handlers are currently commented out. The `docker-compose.yml` service still wires up `uvicorn main:app` for local development.
