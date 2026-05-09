@@ -126,11 +126,11 @@ def get_business_date() -> date:
 def get_filename(source: str) -> str:
     """
     Generates a unique filename for the report based on the source and current timestamp.
-    The filename format is "eod_price_{source}_{business_date}_YYYYMMDD_HHMM.csv".
-    {business_date} is the current business date in YYYYMMDD format, and YYYYMMDD_HHMM is the current timestamp.
+    The filename format is "eod_price_{source}_{business_date}_MMDD_HHMM.csv".
+    {business_date} is the current business date in YYYYMMDD format, and MMDD_HHMM is the current timestamp.
     """
     run_datetime = datetime.now(ZoneInfo("America/New_York"))
-    timestamp = run_datetime.strftime('%Y%m%d_%H%M')
+    timestamp = run_datetime.strftime('%m%d_%H%M')
     business_date = get_business_date().strftime('%Y%m%d')
 
     if (not source):

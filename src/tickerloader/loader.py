@@ -26,9 +26,9 @@ def download_csv_from_s3(bucket: str, key: str) -> str:
 # This module provides functions to load ticker prices into the database. It downloads CSV files from S3, 
 # parses the data, and inserts it into the database.
 def load_report_to_db(bucket: str, filename: str):    
-    # The filename format is "eod_price_{source}_{business_date}_YYYYMMDD_HHMM.csv".
-    # {business_date} is the current business date in YYYYMMDD format, and YYYYMMDD_HHMM is the current timestamp.
-    business_date = filename.split("_")[-3]
+    # The filename format is "eod_price_{source}_{business_date}_MMDD_HHMM.csv".
+    # {business_date} is the current business date in YYYYMMDD format, and MMDD_HHMM is the current timestamp.
+    business_date = filename.split("_")[-3]  # Extract business date from filename
     # Write an upload task record with status 'in_progress'
     business_date_obj = datetime.strptime(business_date, "%Y%m%d").date()
     upload_task_id = new_upload_task(business_date_obj, bucket, filename)
@@ -37,14 +37,15 @@ def load_report_to_db(bucket: str, filename: str):
         if not bucket:
             raise ValueError("Variable 'bucket' is not set")
 
-        logger.info("Starting to load report from s3://%s/%s", bucket, filename)
+        logger.info("Starting to load report for business date %s from s3://%s/%s", business_date, bucket, filename)
+        logger.info("Created upload task with ID %d for s3://%s/%s", upload_task_id, bucket, filename)        
 
         csv_content = download_csv_from_s3(bucket, filename)
         rows = parse_rows(csv_content)
         inserted_count = insert_rows(rows, upload_task_id)
 
         complete_upload_task(upload_task_id, len(rows), inserted_count)
-        logger.info("Successfully loaded report from s3://%s/%s. Rows inserted: %d", bucket, filename, inserted_count)
+        logger.info("Successfully loaded report for business date %s from s3://%s/%s. Rows inserted: %d", business_date, bucket, filename, inserted_count)
         return {
             "status": "success",
             "source_bucket": bucket,
