@@ -25,10 +25,12 @@ def download_csv_from_s3(bucket: str, key: str) -> str:
 
 # This module provides functions to load ticker prices into the database. It downloads CSV files from S3, 
 # parses the data, and inserts it into the database.
-def load_report_to_db(bucket: str, filename: str):
-    business_date = filename.split("_")[-2]  # Assuming filename is like 'stock_price_av_2026-03-09_2200.csv'    
+def load_report_to_db(bucket: str, filename: str):    
+    # The filename format is "eod_price_{source}_{business_date}_YYYYMMDD_HHMM.csv".
+    # {business_date} is the current business date in YYYYMMDD format, and YYYYMMDD_HHMM is the current timestamp.
+    business_date = filename.split("_")[-3]
     # Write an upload task record with status 'in_progress'
-    business_date_obj = datetime.strptime(business_date, "%Y-%m-%d").date()
+    business_date_obj = datetime.strptime(business_date, "%Y%m%d").date()
     upload_task_id = new_upload_task(business_date_obj, bucket, filename)
 
     try:
@@ -115,10 +117,10 @@ def insert_rows(rows: List[Dict], upload_task_id: int) -> int:
             continue
 
         try:
-            open_float = float(open_value)
-            high_float = float(high_value)
-            low_float = float(low_value)
-            close_float = float(close_value)
+            open_float = float(open_value)  # type: ignore[arg-type]
+            high_float = float(high_value)  # type: ignore[arg-type]
+            low_float = float(low_value)  # type: ignore[arg-type]
+            close_float = float(close_value)  # type: ignore[arg-type]
         except (TypeError, ValueError):
             logger.warning("Skipping row due to invalid numeric value: %s", row)
             continue
@@ -147,8 +149,11 @@ def main():
     logging.basicConfig(level=logging.INFO, format='%(levelname)s %(message)s')
 
     bucket = os.getenv("S3_BUCKET_NAME")
-    filename = "stock_price_av_2026-03-09_2200.csv"  # Example filename, replace with actual key in S3
-    
+    filename = "eod_price_20260508_20260509_1046.csv"  # Example filename, replace with actual key in S3
+
+    if not bucket:
+        raise ValueError("S3_BUCKET_NAME environment variable is not set")
+
     result = load_report_to_db(bucket, filename)
     print(json.dumps(result, indent=2))
 

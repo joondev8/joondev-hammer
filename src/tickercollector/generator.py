@@ -4,7 +4,8 @@ import os
 import time
 import requests
 import logging
-from datetime import datetime
+import holidays
+from datetime import date, datetime, timedelta
 
 tickers = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'TD.TO', 'SHOP.TO']
 
@@ -12,29 +13,29 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 
-def create_price_report():
-    """
-    Generates report data and returns a tuple of (content, filename)
-    """
-    # Create a unique filename for the output file
-    timestamp = datetime.now().strftime('%Y-%m-%d_%H%M')
-    filename = f"stock_price_{timestamp}.csv"
+# def create_price_report():
+#     """
+#     Generates report data and returns a tuple of (content, filename)
+#     """
+#     # Create a unique filename for the output file
+#     timestamp = datetime.now().strftime('%Y-%m-%d_%H%M')
+#     filename = f"stock_price_{timestamp}.csv"
 
-    # Extract the actual Business Date from the DataFrame index
-    # data.index[-1] gives the timestamp of the last row
-    business_date = datetime.now().strftime('%Y-%m-%d')
+#     # Extract the actual Business Date from the DataFrame index
+#     # data.index[-1] gives the timestamp of the last row
+#     business_date = datetime.now().strftime('%Y-%m-%d')
 
-    # Generate data in memory
-    output = io.StringIO()
-    writer = csv.writer(output)
+#     # Generate data in memory
+#     output = io.StringIO()
+#     writer = csv.writer(output)
 
-    # Updated Header with 'Date'
-    writer.writerow(['Date', 'Ticker', 'Open', 'High', 'Low', 'Close'])
-    writer.writerow([business_date, 'AAPL', '250.00', '250.00', '250.00', '250.00'])
-    writer.writerow([business_date, 'GOOGL', '15.50', '15.50', '15.50', '15.50'])
-    writer.writerow([business_date, 'MSFT', '100.50', '100.50', '100.50', '100.50'])
+#     # Updated Header with 'Date'
+#     writer.writerow(['Date', 'Ticker', 'Open', 'High', 'Low', 'Close'])
+#     writer.writerow([business_date, 'AAPL', '250.00', '250.00', '250.00', '250.00'])
+#     writer.writerow([business_date, 'GOOGL', '15.50', '15.50', '15.50', '15.50'])
+#     writer.writerow([business_date, 'MSFT', '100.50', '100.50', '100.50', '100.50'])
 
-    return output.getvalue(), filename
+#     return output.getvalue(), filename
 
 
 def create_price_report_by_av():
@@ -46,12 +47,9 @@ def create_price_report_by_av():
     base_url = "https://www.alphavantage.co/query"
 
     # Create a unique filename for the output file
-    # The filename includes the current timestamp to ensure uniqueness and traceability.
-    # It has the format "stock_price_{source}_YYYY-MM-DD_HHMM.csv", where {source} is the data source e,g, "av" for Alpha Vantage, while YYYY-MM-DD is the current date, and HHMM is the current time in hours and minutes.
-    run_datetime = datetime.now()
-    timestamp = run_datetime.strftime('%Y-%m-%d_%H%M')
-    business_date = run_datetime.strftime('%Y-%m-%d')
-    filename = f"stock_price_av_{timestamp}.csv"
+    # The filename includes the current timestamp to ensure uniqueness and traceability.    
+    business_date = get_business_date().strftime('%Y-%m-%d')
+    filename = get_filename("av")
 
     # Generate data in memory
     output = io.StringIO()
@@ -113,6 +111,30 @@ def create_price_report_by_av():
 
     return output.getvalue(), filename
 
+def get_business_date() -> date:
+    """
+    Returns the current business date in date format.
+    If today is a weekend or holiday in US, it should return the most recent previous business date.
+    """
+    us_holidays = holidays.US()
+    today = datetime.now().date()
+    while today.weekday() >= 5 or today in us_holidays:
+        today -= timedelta(days=1)
+    return today
+
+def get_filename(source: str) -> str:
+    """
+    Generates a unique filename for the report based on the source and current timestamp.
+    The filename format is "eod_price_{source}_{business_date}_YYYYMMDD_HHMM.csv".
+    {business_date} is the current business date in YYYYMMDD format, and YYYYMMDD_HHMM is the current timestamp.
+    """
+    run_datetime = datetime.now()
+    timestamp = run_datetime.strftime('%Y%m%d_%H%M')
+    business_date = get_business_date().strftime('%Y%m%d')
+
+    if (not source):
+        return f"eod_price_{business_date}_{timestamp}.csv"    
+    return f"eod_price_{source}_{business_date}_{timestamp}.csv"
 
 def main():
     logging.basicConfig(level=logging.INFO, format='%(levelname)s %(message)s')

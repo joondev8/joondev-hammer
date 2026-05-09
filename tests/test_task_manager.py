@@ -28,13 +28,13 @@ def test_insert_upload_task_returns_task_id(monkeypatch):
     _, cursor = _mock_db(monkeypatch, fetchone_value=(42,))
 
     task_id = task_manager.insert_upload_task(
-        date(2026, 3, 9), "test-bucket", "stock_price_av_2026-03-09_2200.csv", "IN_PROGRESS"
+        date(2026, 3, 9), "test-bucket", "eod_price_av_2026-03-09_2200.csv", "IN_PROGRESS"
     )
 
     assert task_id == 42
     cursor.execute.assert_called_once()
     args = cursor.execute.call_args.args[1]
-    assert args == (date(2026, 3, 9), "test-bucket", "stock_price_av_2026-03-09_2200.csv", 0, 0, "IN_PROGRESS")
+    assert args == (date(2026, 3, 9), "test-bucket", "eod_price_av_2026-03-09_2200.csv", 0, 0, "IN_PROGRESS")
 
 
 def test_insert_upload_task_raises_when_no_id_returned(monkeypatch):
@@ -42,7 +42,7 @@ def test_insert_upload_task_raises_when_no_id_returned(monkeypatch):
 
     with pytest.raises(RuntimeError, match="INSERT returned no id"):
         task_manager.insert_upload_task(
-            date(2026, 3, 9), "test-bucket", "stock_price_av_2026-03-09_2200.csv", "IN_PROGRESS"
+            date(2026, 3, 9), "test-bucket", "eod_price_av_2026-03-09_2200.csv", "IN_PROGRESS"
         )
 
 
@@ -51,7 +51,7 @@ def test_insert_upload_task_uses_custom_schema(monkeypatch):
     _, cursor = _mock_db(monkeypatch, fetchone_value=(7,))
 
     task_manager.insert_upload_task(
-        date(2026, 3, 9), "test-bucket", "stock_price_av_2026-03-09_2200.csv", "IN_PROGRESS"
+        date(2026, 3, 9), "test-bucket", "eod_price_av_2026-03-09_2200.csv", "IN_PROGRESS"
     )
 
     sql = cursor.execute.call_args.args[0]
@@ -93,7 +93,7 @@ def test_update_upload_task_status_returns_zero_for_missing_task(monkeypatch):
 def test_new_upload_task_inserts_with_in_progress_status(monkeypatch):
     _, cursor = _mock_db(monkeypatch, fetchone_value=(5,))
 
-    task_id = task_manager.new_upload_task(date(2026, 3, 9), "test-bucket", "stock_price_av_2026-03-09_2200.csv")
+    task_id = task_manager.new_upload_task(date(2026, 3, 9), "test-bucket", "eod_price_av_2026-03-09_2200.csv")
 
     assert task_id == 5
     args = cursor.execute.call_args.args[1]

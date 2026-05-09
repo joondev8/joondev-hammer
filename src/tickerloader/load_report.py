@@ -3,7 +3,6 @@ import logging
 import os
 import sys
 from typing import Dict
-
 from tickerloader.loader import load_report_to_db as _load_report_to_db
 
 

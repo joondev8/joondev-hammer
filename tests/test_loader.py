@@ -135,11 +135,11 @@ def test_load_report_to_db_success(monkeypatch):
     monkeypatch.setattr(loader, "complete_upload_task", MagicMock())
     monkeypatch.setattr(loader, "insert_rows", lambda rows, task_id: len(rows))
 
-    result = loader.load_report_to_db("test-bucket", "stock_price_av_2026-03-09_2200.csv")
+    result = loader.load_report_to_db("test-bucket", "eod_price_av_20260309_20260309_2200.csv")
 
     assert result["status"] == "success"
     assert result["source_bucket"] == "test-bucket"
-    assert result["source_key"] == "stock_price_av_2026-03-09_2200.csv"
+    assert result["source_key"] == "eod_price_av_20260309_20260309_2200.csv"
     assert result["rows_parsed"] == 1
     assert result["rows_inserted"] == 1
 
@@ -154,6 +154,6 @@ def test_load_report_to_db_marks_task_failed_on_error(monkeypatch):
     monkeypatch.setattr(loader, "fail_upload_task", fail_mock)
 
     with pytest.raises(RuntimeError, match="S3 error"):
-        loader.load_report_to_db("test-bucket", "stock_price_av_2026-03-09_2200.csv")
+        loader.load_report_to_db("test-bucket", "eod_price_av_20260309_20260309_2200.csv")
 
     fail_mock.assert_called_once_with(99, "S3 error")

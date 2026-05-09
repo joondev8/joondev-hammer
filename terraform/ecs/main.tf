@@ -82,6 +82,7 @@ resource "aws_ecs_task_definition" "loader" {
     name      = "hammer-loader"
     image     = "925369342450.dkr.ecr.us-east-1.amazonaws.com/hammer-service:${var.image_tag}"
     essential = true
+    command   = ["python", "-m", "tickerloader.load_report"]
 
     environment = [
       { name = "AWS_REGION", value = "us-east-1" },

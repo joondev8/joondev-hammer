@@ -1,12 +1,12 @@
 resource "aws_scheduler_schedule" "weekday_collector" {
-  name = "hammer-price-report-collector-6pm-weekdays"
+  name = "hammer-price-report-collector-8pm-weekdays"
 
   flexible_time_window {
     mode = "OFF"
   }
 
   # cron(Minutes Hours Day-of-month Month Day-of-week Year)
-  schedule_expression          = "cron(0 18 ? * MON-FRI *)"
+  schedule_expression          = "cron(0 20 ? * MON-FRI *)"
   schedule_expression_timezone = "America/New_York"
 
   target {

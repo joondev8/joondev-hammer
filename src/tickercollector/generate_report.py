@@ -1,5 +1,5 @@
-from .generator import create_price_report_by_av
-from .uploader import upload_to_s3
+from tickercollector.generator import create_price_report_by_av
+from tickercollector.uploader import upload_to_s3
 import os
 
 

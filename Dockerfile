@@ -22,5 +22,5 @@ COPY src/ .
 RUN adduser --disabled-password --no-create-home appuser
 USER appuser
 
-# Run the application
-CMD ["python", "-m", "tickerloader.load_report"]
+# Default command for local use. In ECS, this is overridden by the task definition's command field.
+# CMD ["python", "-m", "tickerloader.load_report"]
