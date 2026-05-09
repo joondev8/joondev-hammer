@@ -8,8 +8,6 @@ import holidays
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-tickers = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'TD.TO', 'SHOP.TO']
-
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
@@ -59,6 +57,7 @@ def create_price_report_by_av():
     # Updated Header with 'Date'
     writer.writerow(['Date', 'Ticker', 'Open', 'High', 'Low', 'Close', 'Volume'])
 
+    tickers = get_ticker_list()
     for ticker in tickers:
         if not api_key:
             writer.writerow([business_date, ticker, "N/A", "N/A", "N/A", "N/A", "N/A"])
@@ -136,6 +135,14 @@ def get_filename(source: str) -> str:
     if (not source):
         return f"eod_price_{business_date}_{timestamp}.csv"    
     return f"eod_price_{source}_{business_date}_{timestamp}.csv"
+
+def get_ticker_list() -> list:
+    """
+    Returns the list of tickers to fetch data for.
+    This can be extended to read from a config file or database in the future.
+    """
+    tickers = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'TD.TO', 'SHOP.TO']
+    return tickers
 
 def main():
     logging.basicConfig(level=logging.INFO, format='%(levelname)s %(message)s')
