@@ -6,6 +6,7 @@ import requests
 import logging
 import holidays
 from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 tickers = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'TD.TO', 'SHOP.TO']
 
@@ -117,7 +118,7 @@ def get_business_date() -> date:
     If today is a weekend or holiday in US, it should return the most recent previous business date.
     """
     us_holidays = holidays.US()
-    today = datetime.now().date()
+    today = datetime.now(ZoneInfo("America/New_York")).date()
     while today.weekday() >= 5 or today in us_holidays:
         today -= timedelta(days=1)
     return today
@@ -128,7 +129,7 @@ def get_filename(source: str) -> str:
     The filename format is "eod_price_{source}_{business_date}_YYYYMMDD_HHMM.csv".
     {business_date} is the current business date in YYYYMMDD format, and YYYYMMDD_HHMM is the current timestamp.
     """
-    run_datetime = datetime.now()
+    run_datetime = datetime.now(ZoneInfo("America/New_York"))
     timestamp = run_datetime.strftime('%Y%m%d_%H%M')
     business_date = get_business_date().strftime('%Y%m%d')
 
