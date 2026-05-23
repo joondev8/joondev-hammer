@@ -11,4 +11,5 @@ holidays>=0.46
 pytest==8.0.2
 moto[s3]==5.0.2      # Mocks S3 so you don't need real AWS credentials to test
 pytest-cov==4.0.0    # For test coverage reports
-flake8==6.0.0       # For static code analysis
+ruff>=0.4.0
+bandit>=1.7.0
