@@ -35,6 +35,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Run Ruff linter
+        run: ruff check src/ tests/
+
+      - name: Run Bandit security scan
+        run: bandit -r src/ -q
+
       - name: Run tests with pytest
         run: pytest
 
