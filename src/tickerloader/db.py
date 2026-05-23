@@ -96,8 +96,8 @@ def get_connection():
         if connection is not None:
             try:
                 get_pool().putconn(connection, close=True)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed to return connection to pool: %s", exc)
             connection = None
 
         if _get_auth_mode() == _AUTH_MODE_IAM:
