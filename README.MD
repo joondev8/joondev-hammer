@@ -77,8 +77,8 @@ joondev-hammer/
 │   ├── test_task_manager.py
 │   └── test_uploader.py
 ├── Dockerfile
-├── requirements.txt
-└── pytest.ini
+├── pyproject.toml
+└── uv.lock
 ```
 
 ## Database Schema
@@ -91,6 +91,7 @@ Defined in `db/001_create_ticker_prices.sql`:
 ## Requirements
 
 - Python 3.12
+- [uv](https://docs.astral.sh/uv/) (dependency manager)
 - Docker (for building the ECS image)
 - AWS account with permissions for S3, ECS, ECR, EventBridge, RDS
 - Terraform (for infrastructure provisioning)
@@ -98,7 +99,7 @@ Defined in `db/001_create_ticker_prices.sql`:
 ## Install
 
 ```bash
-pip install -r requirements.txt
+uv sync
 ```
 
 ## Environment Variables
@@ -130,7 +131,7 @@ pip install -r requirements.txt
 ### Run tests
 
 ```bash
-pytest -v
+uv run pytest -v
 ```
 
 ### Run collector locally
@@ -138,7 +139,7 @@ pytest -v
 ```bash
 export S3_BUCKET_NAME=your-bucket
 export AV_API_KEY=your-key
-PYTHONPATH=src python -m tickercollector.generate_report
+uv run python -m tickercollector.generate_report
 ```
 
 ### Run loader locally
@@ -147,7 +148,7 @@ PYTHONPATH=src python -m tickercollector.generate_report
 export S3_BUCKET_NAME=your-bucket
 export S3_OBJECT_KEY=eod_price_av_20260509_20260509_2000.csv
 export DB_HOST=... DB_NAME=... DB_USERNAME=... DB_PASSWORD=...
-PYTHONPATH=src python -m tickerloader.load_report
+uv run python -m tickerloader.load_report
 ```
 
 ### Build and push Docker image
@@ -168,7 +169,7 @@ terraform apply -var-file=terraform.tfvars
 
 ## Notes
 
-- `pytest.ini` sets `pythonpath = src`, so test imports use `tickercollector.*` and `tickerloader.*`.
+- `pyproject.toml` sets `pythonpath = ["src"]` under `[tool.pytest.ini_options]`, so test imports use `tickercollector.*` and `tickerloader.*`.
 - `get_business_date()` rolls back to the most recent US business day, skipping weekends and US federal holidays (`holidays.US()`).
 - `resolve_s3_location()` supports both EventBridge S3 Object Created events and S3 notification event shapes.
 - Loader skips rows where any numeric field is `N/A` or non-numeric.
