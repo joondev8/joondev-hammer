@@ -1,36 +1,42 @@
 # Joondev Hammer
 
-Python project for daily stock ticker reporting:
-- `tickercollector` generates OHLC CSV files and uploads them to S3.
-- `tickerloader` reads CSV files from S3 and loads rows into PostgreSQL on AWS RDS.
-- `main.py` exposes a FastAPI service for triggering loads via HTTP.
+Python project for daily stock ticker reporting with two standalone scripts:
+- `tickercollector` fetches OHLC prices from Alpha Vantage and uploads a CSV to S3.
+- `tickerloader` downloads the CSV from S3 and loads the rows into PostgreSQL on AWS RDS.
 
 ## Overview
 
-The repository contains two flows and a REST API shell:
+### 1. Generate + upload (`tickercollector`)
 
-1. **Generate + upload flow** (standalone Python script)
-   - Builds CSV content for configured tickers using Alpha Vantage (`requests`)
-   - Uploads generated content to S3 (`boto3`)
-   - Entry point: `python -m tickercollector.generate_report`
+Fetches daily OHLC data for a fixed list of tickers — `AAPL`, `GOOGL`, `MSFT`, `AMZN`, `TSLA`, `TD.TO`, `SHOP.TO` — via the Alpha Vantage API and writes a CSV to S3.
 
-2. **Load flow** (AWS ECS)
-   - Resolves S3 location from EventBridge or S3 notification event records
-   - Downloads and parses CSV rows
-   - Inserts data into `market_data.raw_ticker_prices`
-   - Tracks load status in `market_data.upload_task` (`IN_PROGRESS` → `DONE` / `ERROR`), including `row_count`, `rows_inserted`, and `error_message`
-   - Default container entry point: `python -m tickerloader.load_report`
+- `generator.py` — builds the CSV in memory; falls back to `N/A` values when no API key is set or the rate limit is hit
+- `uploader.py` — uploads the CSV content to S3 using `boto3`
+- `generate_report.py` — entry point; reads `S3_BUCKET_NAME` and calls the above two modules
 
-3. **REST API** (FastAPI / Docker)
-   - The FastAPI application is defined in `main.py` but all routes are currently commented out.
-   - Previously planned endpoints: `GET /health` and `POST /ticker-files/{filename}/load`
+CSV format: `Date, Ticker, Open, High, Low, Close, Volume`  
+Filename format: `stock_price_av_YYYY-MM-DD_HHMM.csv`
+
+### 2. Load to database (`tickerloader`)
+
+Downloads a CSV from S3, parses each row, and inserts the data into PostgreSQL. Every run is tracked in an `upload_task` record.
+
+- `loader.py` — downloads the CSV, parses rows, inserts into `market_data.raw_ticker_prices`, tracks status via `task_manager`
+- `task_manager.py` — writes `upload_task` rows with status `IN_PROGRESS` → `DONE` / `ERROR`, recording `row_count`, `rows_inserted`, and `error_message`
+- `db.py` — connection pool; supports password auth and IAM token auth (auto-refreshed on expiry)
+- `load_report.py` — entry point; resolves the S3 bucket/key from an EventBridge or S3 notification event, then calls `loader`
+
+The Docker image `CMD` runs this entry point directly:
+
+```
+CMD ["python", "-m", "tickerloader.load_report"]
+```
 
 ## Project Structure
 
 ```
 joondev-hammer/
 ├── src/
-│   ├── main.py
 │   ├── tickercollector/
 │   │   ├── __init__.py
 │   │   ├── generate_report.py
@@ -67,9 +73,10 @@ joondev-hammer/
 ## Requirements
 
 - Python 3.12
-- Docker (for containerised local development or production deployment)
-- AWS account + permissions for S3/Lambda/ECS (for cloud execution)
-- Terraform (optional, for infra provisioning)
+- Docker (for containerised deployment)
+- AWS account with permissions for S3 and ECS
+- PostgreSQL on AWS RDS
+- Terraform (optional, for infrastructure provisioning)
 
 ## Install
 
@@ -80,22 +87,28 @@ pip install -r requirements.txt
 ## Environment Variables
 
 ### `tickercollector`
-- `S3_BUCKET_NAME` (required): destination S3 bucket for generated reports
-- `AV_API_KEY` (optional): Alpha Vantage API key; when missing, report values fall back to `N/A`
 
-### `tickerloader` / API
-- `S3_BUCKET_NAME` (required for the FastAPI endpoint and CLI mode)
-- `S3_OBJECT_KEY` (required for CLI mode via `python -m tickerloader.load_report`)
-- `DB_HOST` (required): RDS endpoint
-- `DB_PORT` (optional): database port, default `5432`
-- `DB_NAME` (required): PostgreSQL database name
-- `DB_USERNAME` (required): database username
-- `DB_PASSWORD` (required): database password
-- `DB_SCHEMA` (optional): schema name, default `market_data`
-- `DB_SSLMODE` (optional): SSL mode, default `require`
-- `DB_AUTH_MODE` (optional): `password` (default) or `iam`
-- `AWS_REGION` (required when `DB_AUTH_MODE=iam`): used to generate the RDS IAM auth token
-- `DB_POOL_MAX_CONN` (optional): connection pool size, default `5`
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `S3_BUCKET_NAME` | ✅ | — | Destination S3 bucket for generated CSV files |
+| `AV_API_KEY` | ❌ | — | Alpha Vantage API key; rows fall back to `N/A` when unset |
+
+### `tickerloader`
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `S3_BUCKET_NAME` | ✅ | — | Source S3 bucket |
+| `S3_OBJECT_KEY` | ✅ | — | Source S3 object key (CSV filename) |
+| `DB_HOST` | ✅ | — | RDS endpoint |
+| `DB_NAME` | ✅ | — | PostgreSQL database name |
+| `DB_USERNAME` | ✅ | — | Database username |
+| `DB_PASSWORD` | ✅* | — | Database password (*not used when `DB_AUTH_MODE=iam`) |
+| `DB_PORT` | ❌ | `5432` | Database port |
+| `DB_SCHEMA` | ❌ | `market_data` | PostgreSQL schema name |
+| `DB_SSLMODE` | ❌ | `require` | SSL mode (forced to `verify-full` for IAM auth) |
+| `DB_AUTH_MODE` | ❌ | `password` | Auth mode: `password` or `iam` |
+| `AWS_REGION` | ✅ when IAM | — | AWS region used to generate the RDS IAM auth token |
+| `DB_POOL_MAX_CONN` | ❌ | `5` | Connection pool size |
 
 ## Usage
 
@@ -105,22 +118,7 @@ pip install -r requirements.txt
 pytest -v
 ```
 
-### Run API locally (Docker)
-
-```bash
-docker compose up
-```
-
-The API is available at `http://localhost:8010`.
-
-### Run API locally (without Docker)
-
-```bash
-cd src
-uvicorn main:app --reload --port 8010
-```
-
-### Run generator (standalone script)
+### Run generator
 
 ```bash
 cd src
@@ -129,19 +127,22 @@ python -m tickercollector.generate_report
 
 Requires `S3_BUCKET_NAME` (and optionally `AV_API_KEY`) to be set.
 
-### Lambda handler
+### Run loader
 
-> ⚠️ `tickercollector.generate_report.lambda_handler` is currently commented out. The generator runs as a standalone script (see above).
-
-### Local invocation example (generator)
-
-```python
-from tickercollector.generate_report import main
-
-main()
+```bash
+cd src
+python -m tickerloader.load_report
 ```
 
-Requires `S3_BUCKET_NAME` to be set in your environment.
+Requires `S3_BUCKET_NAME`, `S3_OBJECT_KEY`, and all `DB_*` variables to be set. From the repository root, prefix with `PYTHONPATH=src`.
+
+### Run loader via Docker
+
+```bash
+docker compose up
+```
+
+The container runs `python -m tickerloader.load_report` by default (see `Dockerfile`).
 
 ### Local invocation example (loader)
 
@@ -149,39 +150,30 @@ Requires `S3_BUCKET_NAME` to be set in your environment.
 from tickerloader.load_report import load_report_to_db
 
 event = {
-	"Records": [
-		{
-			"s3": {
-				"bucket": {"name": "your-bucket"},
-				"object": {"key": "stock_price_av_2026-02-28.csv"}
-			}
-		}
-	]
+    "Records": [
+        {
+            "s3": {
+                "bucket": {"name": "your-bucket"},
+                "object": {"key": "stock_price_av_2026-03-09_2200.csv"}
+            }
+        }
+    ]
 }
 
 result = load_report_to_db(event, None)
 print(result)
 ```
 
-### Package-mode local run (loader)
+## Database Schema
 
-```bash
-python -m tickerloader.load_report
-```
+Defined in `db/001_create_ticker_prices.sql`:
 
-If you run from repository root, set `PYTHONPATH=src` first. This is also the default `CMD` used by the Docker image.
-
-## Known assumptions
-
-- `tickerloader.loader.load_report_to_db` derives `business_date` from `filename.split("_")[-2]`.
-- Expected key format for correct metadata extraction is `stock_price_{source}_YYYY-MM-DD_HHMM.csv` (example: `stock_price_av_2026-03-09_2200.csv`).
-- Keys not matching this format may fail during metadata parsing or date conversion.
+- **`market_data.upload_task`** — one row per load run; tracks `status` (`IN_PROGRESS` / `DONE` / `ERROR`), `row_count`, `rows_inserted`, and `error_message`
+- **`market_data.raw_ticker_prices`** — one row per ticker per business date; columns: `business_date`, `ticker`, `open_price`, `high_price`, `low_price`, `close_price`, `upload_task_id`
 
 ## Notes
 
-- `pytest.ini` sets `pythonpath = src`, so imports use `tickercollector.*` and `tickerloader.*`.
-- Loader row parsing expects CSV columns: `Date`, `Ticker`, `Open`, `High`, `Low`, `Close`.
-- The generator currently writes an additional `Volume` column; the loader ignores it.
-- `tickerloader.load_report.resolve_s3_location` supports EventBridge S3 events and S3 notification event shapes.
-- `db/001_create_ticker_prices.sql` defines the PostgreSQL schema used by loader persistence.
-- `main.py` defines a FastAPI application; all route handlers are currently commented out. The `docker-compose.yml` service still wires up `uvicorn main:app` for local development.
+- `pytest.ini` sets `pythonpath = src`, so test imports use `tickercollector.*` and `tickerloader.*`.
+- The loader derives `business_date` from the filename: `filename.split("_")[-2]`. Files must follow the pattern `stock_price_av_YYYY-MM-DD_HHMM.csv` for correct date parsing.
+- The generator writes a `Volume` column in the CSV; the loader ignores it.
+- `load_report.resolve_s3_location` accepts both EventBridge S3 event shapes and S3 notification event shapes (`Records[*].s3`).
