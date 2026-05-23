@@ -1,0 +1,24 @@
+[project]
+name = "hammer"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi==0.110.0",
+    "uvicorn[standard]==0.27.1",
+    "boto3>=1.35.0",
+    "psycopg2-binary>=2.9.9",
+    "python-dotenv==1.0.1",
+    "requests>=2.31.0",
+    "holidays>=0.46",
+]
+
+[dependency-groups]
+dev = [
+    "pytest==8.0.2",
+    "moto[s3]==5.0.2",
+    "ruff>=0.4.0",
+    "bandit>=1.7.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
