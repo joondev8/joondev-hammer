@@ -1,9 +1,18 @@
     CREATE SCHEMA IF NOT EXISTS security_master;
 
+    CREATE TABLE IF NOT EXISTS security_master.country_code (
+        id BIGSERIAL PRIMARY KEY,    
+        name TEXT NOT NULL,
+        country_code TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        last_updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS security_master.asset_equity (
         id BIGSERIAL PRIMARY KEY,    
         name TEXT NOT NULL,
         country_of_incorporation TEXT,
+        country_of_risk TEXT,
         created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
         last_updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     );

@@ -206,7 +206,14 @@ resource "aws_ecs_task_definition" "collector" {
     environment = [
       { name = "AWS_REGION", value = "us-east-1" },
       { name = "S3_BUCKET_NAME", value = var.bucket_name },
-      { name = "AV_API_KEY", value = var.av_api_key }
+      { name = "AV_API_KEY", value = var.av_api_key },
+      { name = "DB_HOST", value = var.db_host },
+      { name = "DB_PORT", value = tostring(var.db_port) },
+      { name = "DB_NAME", value = var.db_name },
+      { name = "DB_USERNAME", value = var.db_username },
+      { name = "DB_PASSWORD", value = var.db_password },
+      { name = "DB_SCHEMA", value = var.db_schema },
+      { name = "DB_SSLMODE", value = var.db_sslmode }
     ]
 
     logConfiguration = {

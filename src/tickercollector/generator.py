@@ -8,6 +8,8 @@ import holidays
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
+from tickerloader.db import get_connection
+
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
@@ -48,7 +50,7 @@ def create_price_report_by_av():
     # Create a unique filename for the output file
     # The filename includes the current timestamp to ensure uniqueness and traceability.    
     business_date = get_business_date().strftime('%Y-%m-%d')
-    filename = get_filename("av")
+    filename = get_filename("")
 
     # Generate data in memory
     output = io.StringIO()
@@ -138,11 +140,26 @@ def get_filename(source: str) -> str:
 
 def get_ticker_list() -> list:
     """
-    Returns the list of tickers to fetch data for.
-    This can be extended to read from a config file or database in the future.
+    Returns the list of tickers to fetch data for. 
+    The list is fetched from database table 'security_master.asset_equity_ticker' where the current business date falls between effective_date and expiry_date.
+    Expiry date can be null, which means the ticker is still active.
+    Remove duplicates and sort the list alphabetically before returning.
     """
-    tickers = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'TD.TO', 'SHOP.TO']
-    return tickers
+    business_date = get_business_date()
+    query = """
+        SELECT DISTINCT ticker
+        FROM security_master.asset_equity_ticker
+        WHERE effective_date <= %s
+          AND (expiry_date IS NULL OR expiry_date >= %s)
+        ORDER BY ticker
+    """
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(query, (business_date, business_date))
+            rows = cur.fetchall()
+
+    logger.info(f"Fetched {len(rows)} tickers from database")
+    return [row[0] for row in rows]
 
 def main():
     logging.basicConfig(level=logging.INFO, format='%(levelname)s %(message)s')
